@@ -3,8 +3,9 @@ title: "Microfluidic_qRTPCR analysis"
 output: html_document
 date: "2022-01-11"
 ---
-
-
+```{r}
+.vsc.attach() #attach the environment to VSCode
+```
 ```{r}
 library(devtools)
 install_github("lldelisle/usefulLDfunctions")
@@ -50,8 +51,6 @@ raw6 <- readCtData(files = paste0(path, "1362627146_ BioMark  MixL1KOs and Anai 
 
 ```{r}
 plotCtArray(raw1)
-savePlot()
-
 ```
 
 ```{r}
@@ -320,9 +319,9 @@ p2 <- ggplot(PCA_data, aes(PC1, PC2, color = Sample, shape = plate)) +
   scale_colour_discrete()+
   xlab(paste("PC1", "(", round(PCA_TOT$eig[1,2], 2), "% )"))+
   ylab(paste("PC2", "(", round(PCA_TOT$eig[2,2], 2), "% )"))+
-  #geom_text_repel(max.overlaps = 20)+
+  geom_text_repel(aes(label = Sample), max.overlaps = 20) +
   theme_bw()
-p2
+ggsave("plots/CommonControls.pdf", p2)
 ```
 
 
@@ -345,8 +344,6 @@ levels(as.factor(DED_2dCT$CellLine))
 
 
 
-
-TAM PAPER
 
 ```{r}
 DED_dCT_Pierre <- DED_dCT %>% filter(!(CellLine %in% c("149", "H9_", "HOI", "A81"))) #Cell Line from Anai
@@ -413,8 +410,6 @@ colnames(DED_2dCT_Pierre)[1] <- "Sample"
 ```
 
 
-
-
 ```{r}
 #Data analysis
 #PCA on definitive endoderm analysis. 
@@ -439,7 +434,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
-p15 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
+p3 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
           geom_point(size = 3) +
           scale_colour_discrete()+
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
@@ -448,12 +443,14 @@ p15 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
           theme_bw()+
           coord_fixed(ratio=1)
 
-p15
+p3
 
-ggsave("DE_WT_PCA.pdf",p15 , width = 15, height = 10)
+ggsave("plots/DE_WT_PCA.pdf", p3, width = 15, height = 10)
 
 ```
 
+
+## Figure 2B 
 ```{r}
 #Data analysis
 #As we can see there are 3 oultiers
@@ -471,7 +468,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
-p16.1 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
+p4<- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
           geom_point(size = 3) +
           scale_colour_discrete()+
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
@@ -479,9 +476,9 @@ p16.1 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
           theme_bw()+
           coord_fixed(ratio=1)
 
-p16.1
+p4
 
-p16.2 <- ggplot(PCA_data, aes(PC1,PC2, color=Plate,  shape= Day)) +
+p5 <- ggplot(PCA_data, aes(PC1,PC2, color=Plate,  shape= Day)) +
           geom_point(size = 3) +
           scale_colour_discrete()+
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
@@ -489,9 +486,9 @@ p16.2 <- ggplot(PCA_data, aes(PC1,PC2, color=Plate,  shape= Day)) +
           theme_bw()+
           coord_fixed(ratio=1)
 
-p16.2
+p5
 
-p16.3 <- ggplot(PCA_data, aes(PC1,PC2, color=Day,  shape= CellLine)) +
+p6 <- ggplot(PCA_data, aes(PC1,PC2, color=Day,  shape= CellLine)) +
           geom_point(size = 3) +
           scale_colour_discrete()+
           scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
@@ -500,48 +497,21 @@ p16.3 <- ggplot(PCA_data, aes(PC1,PC2, color=Day,  shape= CellLine)) +
           theme_bw()+
           coord_fixed(ratio=1)
 
-p16.3
+p6
 
 
-ggsave("DE_WT_PCA_noOutliers_perCellLine.pdf",p16.1 , width = 7, height = 5)
-ggsave("DE_WT_PCA_noOutliers_perPlate.pdf",p16.2 , width = 7, height = 5)
-ggsave("DE_WT_PCA_noOutliers_perDay.pdf",p16.3 , width = 7, height = 5)
-```
-```{r}
-#UMAP
-safelyLoadAPackageInCRANorBioconductor(uwot)
-
-TABLE <- DE_WT_noOutlier
-
-umap.table <- TABLE
-umap.table[is.na(umap.table)] <- 0
-
-umap.DE <- umap(umap.table, pca = 50 , init = "pca")
-
-
-umap_data <- cbind.data.frame(umap.DE, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
-
-colnames(umap_data) <- c("UMAP1", "UMAP2", "Sample", "CellLine", "Day", "Plate")  
-
-p16.4 <- ggplot(umap_data, aes(UMAP1,UMAP2, color=CellLine,  shape= Day)) +
-          geom_point(size = 3) +
-          scale_colour_discrete()+
-          xlab(paste("UMAP1"))+
-          ylab(paste("UMAP2"))+
-          theme_bw()
-
-p16.4
-
+ggsave("plots/DE_WT_PCA_noOutliers_perCellLine.pdf", p4, width = 7, height = 5)
+ggsave("plots/DE_WT_PCA_noOutliers_perPlate.pdf", p5, width = 7, height = 5)
+ggsave("plots/DE_WT_PCA_noOutliers_perDay.pdf", p6, width = 7, height = 5) #Figure2B
 ```
 
-
+## Figure 2E
 ```{r}
 #Eigen score plot
 PCA_data_DEscore <- PCA_data %>% filter (Day == "D4") %>%  group_by(CellLine) %>% summarise(mean = mean(PC1), n = n())
 PCA_data_DEscore$CellLine <- factor(PCA_data_DEscore$CellLine, levels = PCA_data_DEscore$CellLine[order(PCA_data_DEscore$mean,decreasing = T)])
 
-
-p18 <- ggplot(PCA_data_DEscore, aes(x= CellLine, y=mean, group=CellLine)) +
+p7<- ggplot(PCA_data_DEscore, aes(x= CellLine, y=mean, group=CellLine)) +
   geom_point(size = 5)+
   guides(x = guide_axis(angle = 90))+
   theme_bw()+
@@ -554,11 +524,7 @@ p18 <- ggplot(PCA_data_DEscore, aes(x= CellLine, y=mean, group=CellLine)) +
         axis.title   = element_text(size = 26))+
     coord_fixed(ratio=0.5)
 
-p18
-
-
-
-p19 <- ggplot(PCA_data, aes(x= CellLine, y=PC1, color=Day)) +
+p8 <- ggplot(PCA_data, aes(x= CellLine, y=PC1, color=Day)) +
   geom_point(size = 5)+
   guides(x = guide_axis(angle = 90))+
   theme_bw()+
@@ -571,13 +537,15 @@ p19 <- ggplot(PCA_data, aes(x= CellLine, y=PC1, color=Day)) +
         axis.title   = element_text(size = 26))+
     coord_fixed(ratio=0.5)
 
-p19
+
+ggsave("plots/DE_WT_Pseudotime_Day4.pdf", p7, width = 7, height = 5)
+ggsave("plots/DE_WT_Pseudotime_AllDay_AllRep.pdf", p8, width = 7, height = 5)
+```
 
 
-ggsave("DE_WT_Pseudotime_Day4.pdf",p18 , width = 7, height = 5)
-ggsave("DE_WT_Pseudotime_AllDay_AllRep.pdf",p19 , width = 7, height = 5)
-
-cols <- c("FA3" = "#C4D82E")
+## Figure 2F
+```{r}
+cols <- c("FA3" = "#B72467")
 
 #PCA with Day 0 only
 TABLE <- DE_WT_noOutlier %>% filter(V2 == "D0")
@@ -591,7 +559,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
 
-p16.4 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+p9 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           geom_point(size = 3) +
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
           ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
@@ -600,8 +568,7 @@ p16.4 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           scale_colour_manual(values = cols)+
           theme(legend.position="none")+
           theme(aspect.ratio = 1)
-p16.4
-ggsave("DE_WT_PCA_D0_AllRep.pdf",p16.4 , width = 7, height = 5)
+ggsave("plots/DE_WT_PCA_D0_AllRep.pdf", p9, width = 7, height = 5)
 
 #PCA with Day 1 only
 TABLE <- DE_WT_noOutlier %>% filter(V2 == "D1")
@@ -614,7 +581,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
-p16.5 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+p10 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           geom_point(size = 3) +
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
           ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
@@ -624,8 +591,8 @@ p16.5 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           theme(legend.position="none")+
           theme(aspect.ratio = 1)
           
-p16.5
-ggsave("DE_WT_PCA_D1_AllRep.pdf",p16.5 , width = 7, height = 5)
+p10
+ggsave("plots/DE_WT_PCA_D1_AllRep.pdf", p10, width = 7, height = 5)
 
 
 
@@ -640,7 +607,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
-p16.6 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+p11 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           geom_point(size = 3) +
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
           ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
@@ -649,8 +616,8 @@ p16.6 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           scale_colour_manual(values = cols)+
           theme(legend.position="none")+
           theme(aspect.ratio = 1)
-p16.6
-ggsave("DE_WT_PCA_D2_AllRep.pdf",p16.6 , width = 7, height = 5)
+p11
+ggsave("plots/DE_WT_PCA_D2_AllRep.pdf", p11, width = 7, height = 5)
 
 
 #PCA with Day 3 only
@@ -664,7 +631,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
-p16.7 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+p12 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           geom_point(size = 3) +
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
           ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
@@ -674,8 +641,8 @@ p16.7 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           theme(legend.position="none")+
           theme(aspect.ratio = 1)
           
-p16.7
-ggsave("DE_WT_PCA_D3_AllRep.pdf",p16.7 , width = 7, height = 5)
+p12
+ggsave("plots/DE_WT_PCA_D3_AllRep.pdf", p12, width = 7, height = 5)
 
 
 
@@ -690,7 +657,7 @@ PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2
 
 colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
 
-p16.8 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+p13 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           geom_point(size = 3) +
           xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
           ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
@@ -700,28 +667,28 @@ p16.8 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
           theme(legend.position="none")+
           theme(aspect.ratio = 1)
           
-p16.8
-ggsave("DE_WT_PCA_D4_AllRep.pdf",p16.8 , width = 7, height = 5)
+p13
+ggsave("plots/DE_WT_PCA_D4_AllRep.pdf", p13, width = 7, height = 5)
 
 ```
 
-
+## Figure 2G
 ```{r}
 TABLE <- DE_WT_noOutlier %>% filter(V2 == "D1")
 PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
 
 options(ggrepel.max.overlaps = Inf)
 
-PCA_D1_variables <- fviz_pca_var(PCA_TOT, choix = "var", repel = T, col.var= "coord")+
+p14 <- fviz_pca_var(PCA_TOT, choix = "var", repel = T, col.var= "coord")+
   scale_color_gradient2(low="blue", mid="white", high="red", midpoint=0.15)+
   #geom_label_repel(label = rownames(PCA_TOT$var$coord), )+
   theme_bw()
-PCA_D1_variables
-
-ggsave("DE_WT_PCA_D1_AllRep_gene.pdf", PCA_D1_variables , width =10, height =7)
+ggsave("plots/DE_WT_PCA_D1_AllRep_gene.pdf", p14 , width =10, height =7)
 
 ```
 
+
+## Figure 2H and S2A
 ```{r}
 #Gene expression time course 
 #for gene track I prefer to use 2dCt as it is easier to read. 
@@ -739,45 +706,53 @@ DE_WT_noOutlier_2dCt <- DE_WT_noNA %>% filter(!(Sample %in% c("FB3 D2 1", "FB3 D
 ```{r}
 
 TABLE <- DE_WT_noOutlier_2dCt 
-#Gastrulation + Endoderm
-ggline(TABLE, x = "V2", y = c("Mixl1", "Eomes", "T", "Gsc", "Fgf8", "Mesp1"), combine = T,
-              add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+# Gastrulation + Endoderm
+p15 <- ggline(TABLE, x = "V2", y = c("Mixl1", "Eomes", "T", "Gsc", "Fgf8", "Mesp1"), combine = T,
+              add = c("mean_se"), color = "CellLine", size = 1, scales = "free_y") +
+              scale_colour_manual(values = cols) +
               theme_bw()
+ggsave("plots/Timecourse_Gastru-Endo.pdf", p15, width = 10, height = 7 )
 
-
-#ENDO2
-ggline(TABLE, x = "V2", y = c("Gsc", "Krt19", "Tbx6", "Lhx1", "Nodal", "Fgf8"), combine = T,
-       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
-  theme_bw()
-
+# ENDO2
+p16 <- ggline(TABLE,  x = "V2", y = c("Gsc", "Krt19", "Tbx6", "Lhx1", "Nodal", "Fgf8"), combine = T,
+              add = c("mean_se"), color = "CellLine", size = 1, scales = "free_y") +
+              scale_colour_manual(values = cols) +
+              theme_bw()
+ggsave("plots/Timecourse_Gastru-Endo2.pdf", p16, width = 10, height = 7)
 
 #MESO
-ggline(TABLE, x = "V2", y = c("Hand2", "Mesp1", "Gata2", "Kdr", "Pdgfra", "Cd34"), combine = T,
-       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
-  theme_bw()
-
+p17 <- ggline(TABLE, x = "V2", y = c("Hand2", "Mesp1", "Gata2", "Kdr", "Pdgfra", "Cd34"), combine = T,
+              add = c("mean_se"), color = "CellLine", size=1, scales = "free_y") +
+              scale_colour_manual(values = cols) +
+              theme_bw()
+ggsave("plots/Timecourse_Meso.pdf", p17, width =10, height =7)
 
 #ECTO
-ggline(TABLE, x = "V2", y = c("Krt10", "Sox1", "Nes", "Foxd3", "Pax6", "Dcx"), combine = T,
-       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
-  theme_bw()
-
-
-#PLURI
-ggline(TABLE, x = "V2", y = c("Pou5f1", "Nanog", "Sox2", "Prdm14", "Zfp42", "Fgf5"), combine = T,
-       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
-  theme_bw()
-
+p18 <- ggline(TABLE, x = "V2", y = c("Krt10", "Sox1", "Nes", "Foxd3", "Pax6", "Dcx"), combine = T,
+              add = c("mean_se"), color = "CellLine", size=1, scales = "free_y") +
+              scale_colour_manual(values = cols) +
+              theme_bw()
+ggsave("plots/Timecourse_Ecto.pdf", p18, width =10, height =7)
 
 #PLURI
-ggline(TABLE, x = "V2", y = c("Fgf8","Pou5f1", "Nanog" ,"Krt19", "Sox2", "Zfp42"), combine = T,
-       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
-  ylab("2dCt")+
-  theme_bw()
+p19 <- ggline(TABLE, x = "V2", y = c("Pou5f1", "Nanog", "Sox2", "Prdm14", "Zfp42", "Fgf5"), combine = T,
+              add = c("mean_se"), color = "CellLine", size=1, scales = "free_y") +
+              scale_colour_manual(values = cols) +
+              theme_bw()
+ggsave("plots/Timecourse_Pluri.pdf", p19, width =10, height =7)
 
-
+#PLURI
+p20 <- ggline(TABLE, x = "V2", y = c("Fgf8","Pou5f1", "Nanog" ,"Krt19", "Sox2", "Zfp42"), combine = T,
+              add = c("mean_se"), color = "CellLine", size=1, scales = "free_y") +
+              scale_colour_manual(values = cols) +
+              theme_bw()
+ggsave("plots/Timecourse_Pluri2.pdf", p20, width =10, height =7)
 
 ```
+
+
+
+
 
 ```{r}
 #HEATMAP
