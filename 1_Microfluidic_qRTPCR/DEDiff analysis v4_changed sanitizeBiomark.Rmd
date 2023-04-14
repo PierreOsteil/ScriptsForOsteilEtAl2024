@@ -6,46 +6,57 @@ date: "2022-01-11"
 
 
 ```{r}
-library(ggplot2)
-library(ggrepel)
-library(dplyr)
-library(ggpubr)
-library(ggrepel)
-library(Rtsne)
-library(plotly)
-library(limma)
-library(HTqPCR)
-library(readr)
-library(tidyverse)
-library(FactoMineR)
-library(repr)
-library(stringr)
 library(devtools)
-library(factoextra)
+install_github("lldelisle/usefulLDfunctions")
+library(usefulLDfunctions)
+
+safelyLoadAPackageInCRANorBioconductor("ggplot2")
+safelyLoadAPackageInCRANorBioconductor("ggrepel")
+safelyLoadAPackageInCRANorBioconductor("dplyr")
+safelyLoadAPackageInCRANorBioconductor("ggpubr")
+safelyLoadAPackageInCRANorBioconductor("ggrepel")
+safelyLoadAPackageInCRANorBioconductor("Rtsne")
+safelyLoadAPackageInCRANorBioconductor("plotly")
+safelyLoadAPackageInCRANorBioconductor("limma")
+safelyLoadAPackageInCRANorBioconductor("HTqPCR")
+safelyLoadAPackageInCRANorBioconductor("readr")
+safelyLoadAPackageInCRANorBioconductor("tidyverse")
+safelyLoadAPackageInCRANorBioconductor("FactoMineR")
+safelyLoadAPackageInCRANorBioconductor("repr")
+safelyLoadAPackageInCRANorBioconductor("stringr")
+safelyLoadAPackageInCRANorBioconductor("devtools")
+safelyLoadAPackageInCRANorBioconductor("factoextra")
 #heatmap
-library(heatmaply)
-library(pheatmap)
-library(RColorBrewer)
+safelyLoadAPackageInCRANorBioconductor("heatmaply")
+safelyLoadAPackageInCRANorBioconductor("pheatmap")
+safelyLoadAPackageInCRANorBioconductor("RColorBrewer")
 
 ```
 
 ```{r}
-raw1 <- readCtData(files = "1362362586_DED#1.csv", format = "BioMark", n.features = 96, n.data = 96) 
-raw2 <- readCtData(files = "1362362588_DED#2.csv", format = "BioMark", n.features = 96, n.data = 96) 
-raw3 <- readCtData(files = "1362362587_Mixl1KO-HIO .csv", format = "BioMark", n.features = 96, n.data = 96) 
-raw4 <- readCtData(files = "1362419391_hepatocytes.csv", format = "BioMark", n.features = 96, n.data = 96)
-raw5 <- readCtData(files = "1362627095_C32-DPVR and Anai samples.csv", format = "BioMark", n.features = 96, n.data = 96)
-raw6 <- readCtData(files = "1362627146_ BioMark  MixL1KOs and Anai samples.csv", format = "BioMark", n.features = 96, n.data = 96)
+dir.create("plots")
 ```
 
 ```{r}
-head(raw1)
+setwd("L:/Pierre/Projects/4-All_git/ScriptsForOsteilEtEl2023/1_Microfluidic_qRTPCR")
+path <- "rawData/"
+raw1 <- readCtData(files = paste0(path, "1362362586_DED#1.csv"), format = "BioMark", n.features = 96, n.data = 96)
+raw2 <- readCtData(files = paste0(path, "1362362588_DED#2.csv"), format = "BioMark", n.features = 96, n.data = 96)
+raw3 <- readCtData(files = paste0(path, "1362362587_Mixl1KO-HIO .csv"), format = "BioMark", n.features = 96, n.data = 96)
+raw4 <- readCtData(files = paste0(path, "1362419391_hepatocytes.csv"), format = "BioMark", n.features = 96, n.data = 96)
+raw5 <- readCtData(files = paste0(path, "1362627095_C32-DPVR and Anai samples.csv"), format = "BioMark", n.features = 96, n.data = 96)
+raw6 <- readCtData(files = paste0(path, "1362627146_ BioMark  MixL1KOs and Anai samples.csv"), format = "BioMark", n.features = 96, n.data = 96)
 ```
 
 ```{r}
 plotCtArray(raw1)
+savePlot()
+
 ```
 
+```{r}
+plotCtArray(raw2)
+```
 ```{r}
 plotCtArray(raw3)
 ```
@@ -64,6 +75,12 @@ plotCtArray(raw6)
 
 
 ```{r}
+#Environment Cleaning
+rm(raw1, raw2, raw3, raw4, raw5,raw6)
+
+```
+
+```{r}
 # create a function to process the raw data and turned them into dCt
 sanitize_biomark <- function (biomark_csv_file) {
   path_to_qPCR_data <- biomark_csv_file
@@ -76,8 +93,8 @@ sanitize_biomark <- function (biomark_csv_file) {
   biomark_filtered <- biomark_Sampled %>% filter( Call != "Fail" & Value < 28 & !grepl("H2O",Name) & !grepl("H20",Name))
   
   
-  # Filter out genes and samples with less than 30 good Ct values
-  biomark_filtered <- biomark_filtered %>% filter(!(Gene %in% (biomark_filtered %>% count(Gene) %>% filter (n < 0) %>% .$Gene)))
+  # Filter out genes and samples
+  biomark_filtered <- biomark_filtered %>% filter(!(Gene %in% (biomark_filtered %>% count(Gene) %>% filter (n < 0) %>% .$Gene))) #all samples are taken when 0 is set
   biomark_filtered <- biomark_filtered %>% filter(!(Name %in% (biomark_filtered %>% count(Name) %>% filter (n < 30) %>% .$Name)))
   
   # Calculate the housekeeping gene control using the mean of Gadph, Tbp, bActin, B2m and Gapdh
@@ -96,12 +113,12 @@ sanitize_biomark <- function (biomark_csv_file) {
 
 
 ```{r}
-biomark_DED1 <- sanitize_biomark("1362362586_DED#1.csv")
-biomark_DED2 <- sanitize_biomark("1362362588_DED#2.csv")
-biomark_DED3 <- sanitize_biomark("1362362587_Mixl1KO-HIO .csv")
-biomark_DED4 <- sanitize_biomark("1362419391_hepatocytes.csv")
-biomark_DED5 <- sanitize_biomark("1362627095_C32-DPVR and Anai samples.csv")
-biomark_DED6 <- sanitize_biomark("1362627146_ BioMark  MixL1KOs and Anai samples.csv")
+biomark_DED1 <- sanitize_biomark(paste0(path, "1362362586_DED#1.csv"))
+biomark_DED2 <- sanitize_biomark(paste0(path, "1362362588_DED#2.csv"))
+biomark_DED3 <- sanitize_biomark(paste0(path, "1362362587_Mixl1KO-HIO .csv"))
+biomark_DED4 <- sanitize_biomark(paste0(path, "1362419391_hepatocytes.csv"))
+biomark_DED5 <- sanitize_biomark(paste0(path, "1362627095_C32-DPVR and Anai samples.csv"))
+biomark_DED6 <- sanitize_biomark(paste0(path, "1362627146_ BioMark  MixL1KOs and Anai samples.csv"))
 ```
 ```{r}
 #plate description
@@ -127,7 +144,7 @@ head(DEDdat)
 ```{r}
 DED$NewName <- DED$Name
 
-#Sample curation 
+#Sample name cleaning
 DED$NewName[(which(DED$Name == "FA3 Day 1 RD*"))] <- "FA3 Day 1 RD"
 DED$NewName[(which(DED$Name == "FA3 Day 2 RD*"))] <- "FA3 Day 2 RD"
 DED$NewName[(which(DED$Name == "FA3 Day 3 RD*"))] <- "FA3 Day 3 RD"
@@ -156,8 +173,8 @@ DED$NewName[(which(DED$Name == "*FA3-1-No Dox D1 (hep biomark B5)"))] <- "FA3-1-
 DED$NewName[(which(DED$Name == "*FA3-1-No Dox D4 (hep biomark D5)"))] <- "FA3-1- No dox D4"
 DED$NewName[(which(DED$Name == "*FB1 day1 A (plate 2 D1)"))] <- "FB1 day1 A"
 DED$NewName[(which(DED$Name == "*MB3 day1 A (plate 1 H8)"))] <- "MB3 Day1 A"
-DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D0 (IO biomark A1)"))] <- "MB3MixL1KO A D0 (#17)" #to check with Nicole
-DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D1 (IO biomark D1)"))] <- "MB3MixL1KO A D1  (#17)" #to check with Nicole
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D0 (IO biomark A1)"))] <- "MB3MixL1KO A D0 (#17)" 
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D1 (IO biomark D1)"))] <- "MB3MixL1KO A D1  (#17)" 
 
 DED$NewName[(which(DED$Name == "*149br_BL2a D11 Control  1"))] <- "149br_BL2a D11 Control  1"
 DED$NewName[(which(DED$Name == "*149br_BL2a D4 Control  1"))] <- "149br_BL2a D4 Control  1"
@@ -176,11 +193,10 @@ DED$NewName[(which(DED$Name == "*MB2 IO Exp4 D0 6K clumps (IO biomark B5)"))] <-
 DED$NewName[(which(DED$Name == "*MB2 IO Exp4 D3 6K clumps (IO biomark D5)"))] <- "MB2  IO Exp4 D3 6K clumps"
 DED$NewName[(which(DED$Name == "*MB3 day1 A (plate 1 H8)"))] <- "MB3 Day1 A"
 DED$NewName[(which(DED$Name == "*MB3 day2 A (plate 1 C9)"))] <- "MB3 Day2 A"
-DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D0 (IO biomark A1)"))] <- "MB3MixL1KO A D0 (#17)" #to check with Nicole
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D0 (IO biomark A1)"))] <- "MB3MixL1KO A D0 (#17)"
 DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D1 (IO biomark D1)"))] <- "MB3MixL1KO A D1  (#17)"
 
 
-#sARAH'S SAMPLES RENAME
 DED$NewName[(which(DED$Name == "MB2-3 st 3B"))] <- "MB2 3 st3B"
 DED$NewName[(which(DED$Name == "FA3-1- No dox D1"))] <- "FA3 1 D1 NoDox"
 DED$NewName[(which(DED$Name == "FA3-1- No dox D2"))] <- "FA3 1 D2 NoDox"
@@ -200,9 +216,6 @@ DED$NewName[(which(DED$Name == "FA3-3- No Dox D4"))] <- "FA3 3 D4 NoDox"
 DED$NewName[(which(DED$Name == "FA3-3- No Dox st2"))] <- "FA3 3 st2 NoDox"
 DED$NewName[(which(DED$Name == "FA3-3- No Dox st3B"))] <- "FA3 3 st3B NoDox"
 
-
-
-
 ```
 
 
@@ -210,19 +223,17 @@ DED$NewName[(which(DED$Name == "FA3-3- No Dox st3B"))] <- "FA3 3 st3B NoDox"
 ```{r}
 ### NO NORMALISATION
 #Table generation
-DED_dCT  <- cbind.data.frame( DED$NewName, DEDdat, plate)
+DED_dCT  <- cbind.data.frame(DED$NewName, DEDdat, plate)
 head(DED_dCT)
-DED_2dCT  <- cbind.data.frame( DED$NewName, 2^DEDdat, plate)
+DED_2dCT  <- cbind.data.frame(DED$NewName, 2^DEDdat, plate)
 head(DED_2dCT)
 ```
 
-
-
 ```{r}
 #Check control samples
-GeneIntersect <- c("DED$NewName", intersect(colnames(biomark_DED1), 
+GeneIntersect <- c("DED$NewName", intersect(colnames(biomark_DED1),
                                     intersect(colnames(biomark_DED2),
-                                      intersect(colnames(DED), 
+                                      intersect(colnames(DED),
                                         intersect(colnames(biomark_DED4),
                                            intersect(colnames(biomark_DED5),  colnames(biomark_DED6)    ))))), "plate") #to only check common genes in the 4 plates. 
 DED_valid <- DED_dCT
@@ -266,26 +277,28 @@ head(TableRawAllplates)
 
 ```{r}
 #PCA
-PCA_TOT=PCA(TableRaw2plates)
-DED_Ctrl= DED_Raw2plates
+PCA_TOT <- PCA(TableRaw2plates)
+DED_Ctrl <- DED_Raw2plates
 
 PCAcoord <- as.data.frame(PCA_TOT$ind)
-PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+PCAcoord12 <- cbind.data.frame(PCAcoord[, 1], PCAcoord[, 2])
 
 PCA_data <- cbind.data.frame(PCAcoord12, DED_Ctrl$plate, DED_Ctrl$`DED$NewName`)
 
 colnames(PCA_data) <- c("PC1", "PC2", "plate", "Sample")
-
+#PCA_data$Sample <- factor(PCA_data$Sample)
+#PCA_data$plate <- factor(PCA_data$plate)
+head(PCA_data)
 
 #plot PCA
-p1 <- ggplot(PCA_data, aes(PC1,PC2, color=Sample, shape = plate)) +
-  geom_point( size=5) +
-  scale_colour_discrete()+
-  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
-  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
-  #geom_text_repel(max.overlaps = 20)+
+p1 <- ggplot(PCA_data, aes(PC1, PC2, color = Sample, shape = plate)) +
+  geom_point(size = 5) +
+  scale_colour_discrete() +
+  xlab(paste("PC1", "(", round(PCA_TOT$eig[1, 2], 2), "% )")) +
+  ylab(paste("PC2", "(", round(PCA_TOT$eig[2, 2], 2), "% )")) +
+  geom_text_repel(aes(label = Sample), max.overlaps = 20) +
   theme_bw()
-p1
+ggsave("plots/AllControls.pdf", p1)
 ```
 
 ```{r}
@@ -294,19 +307,19 @@ PCA_TOT=PCA(TableRawAllplates)
 DED_Ctrl= DED_RawAllplates
 
 PCAcoord <- as.data.frame(PCA_TOT$ind)
-PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+PCAcoord12 <- cbind.data.frame(PCAcoord[, 1], PCAcoord[, 2])
 
 PCA_data <- cbind.data.frame(PCAcoord12, DED_Ctrl$plate, DED_Ctrl$`DED$NewName`)
 
 colnames(PCA_data) <- c("PC1", "PC2", "plate", "Sample")
-
+PCA_data$Sample <- as.factor(PCA_data$Sample)
 
 #plot PCA
-p2 <- ggplot(PCA_data, aes(PC1,PC2, color=Sample, shape = plate)) +
+p2 <- ggplot(PCA_data, aes(PC1, PC2, color = Sample, shape = plate)) +
   geom_point( size=5) +
   scale_colour_discrete()+
-  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
-  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+  xlab(paste("PC1", "(", round(PCA_TOT$eig[1,2], 2), "% )"))+
+  ylab(paste("PC2", "(", round(PCA_TOT$eig[2,2], 2), "% )"))+
   #geom_text_repel(max.overlaps = 20)+
   theme_bw()
 p2
@@ -496,7 +509,7 @@ ggsave("DE_WT_PCA_noOutliers_perDay.pdf",p16.3 , width = 7, height = 5)
 ```
 ```{r}
 #UMAP
-library(uwot)
+safelyLoadAPackageInCRANorBioconductor(uwot)
 
 TABLE <- DE_WT_noOutlier
 
