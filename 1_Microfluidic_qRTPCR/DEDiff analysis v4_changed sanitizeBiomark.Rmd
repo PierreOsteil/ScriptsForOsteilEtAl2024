@@ -1,0 +1,1230 @@
+---
+title: "Microfluidic_qRTPCR analysis"
+output: html_document
+date: "2022-01-11"
+---
+
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(ggpubr)
+library(ggrepel)
+library(Rtsne)
+library(plotly)
+library(limma)
+library(HTqPCR)
+library(readr)
+library(tidyverse)
+library(FactoMineR)
+library(repr)
+library(stringr)
+library(devtools)
+library(factoextra)
+#heatmap
+library(heatmaply)
+library(pheatmap)
+library(RColorBrewer)
+
+```
+
+```{r}
+raw1 <- readCtData(files = "1362362586_DED#1.csv", format = "BioMark", n.features = 96, n.data = 96) 
+raw2 <- readCtData(files = "1362362588_DED#2.csv", format = "BioMark", n.features = 96, n.data = 96) 
+raw3 <- readCtData(files = "1362362587_Mixl1KO-HIO .csv", format = "BioMark", n.features = 96, n.data = 96) 
+raw4 <- readCtData(files = "1362419391_hepatocytes.csv", format = "BioMark", n.features = 96, n.data = 96)
+raw5 <- readCtData(files = "1362627095_C32-DPVR and Anai samples.csv", format = "BioMark", n.features = 96, n.data = 96)
+raw6 <- readCtData(files = "1362627146_ BioMark  MixL1KOs and Anai samples.csv", format = "BioMark", n.features = 96, n.data = 96)
+```
+
+```{r}
+head(raw1)
+```
+
+```{r}
+plotCtArray(raw1)
+```
+
+```{r}
+plotCtArray(raw3)
+```
+
+```{r}
+plotCtArray(raw4)
+```
+
+```{r}
+plotCtArray(raw5)
+```
+
+```{r}
+plotCtArray(raw6)
+```
+
+
+```{r}
+# create a function to process the raw data and turned them into dCt
+sanitize_biomark <- function (biomark_csv_file) {
+  path_to_qPCR_data <- biomark_csv_file
+  
+  biomark_raw <- read_csv(file=path_to_qPCR_data, col_names = TRUE, skip = 11)
+  biomark_Sampled <- biomark_raw %>% rename( Gene = Name...5 ) %>% rename( Name = Name...2 ) %>% select(ID, Name, Gene, Value, Call, Threshold)
+  
+  
+  # Filtered out Failed calls and high Ct values
+  biomark_filtered <- biomark_Sampled %>% filter( Call != "Fail" & Value < 28 & !grepl("H2O",Name) & !grepl("H20",Name))
+  
+  
+  # Filter out genes and samples with less than 30 good Ct values
+  biomark_filtered <- biomark_filtered %>% filter(!(Gene %in% (biomark_filtered %>% count(Gene) %>% filter (n < 0) %>% .$Gene)))
+  biomark_filtered <- biomark_filtered %>% filter(!(Name %in% (biomark_filtered %>% count(Name) %>% filter (n < 30) %>% .$Name)))
+  
+  # Calculate the housekeeping gene control using the mean of Gadph, Tbp, bActin, B2m and Gapdh
+  biomark_hk <- biomark_filtered %>% filter( Gene %in% c("Gapdh", "TBP", "Actb","B2m", "Gusb")) %>% group_by(Name) %>% summarise( hk_mean = (mean(Value)))
+  biomark_dCt <- inner_join(biomark_filtered, biomark_hk, by = c("Name" = "Name")) %>% mutate(dCt = (-1*(Value-hk_mean)))
+  biomark_dCt <- biomark_dCt %>% filter(!(Gene %in% c("PPC", "RTC" )))
+  
+  # Spread the data into a matrix
+  biomark_spread <- biomark_dCt%>% select(Name, Gene, dCt) %>% spread(key = Gene, value= dCt) %>% replace(.,is.na(.), -15) 
+  
+  # Remove the three housekeeping genes
+  biomark_spread_nohk <- biomark_spread %>% select(-one_of(c("Gapdh", "TBP", "Actb","B2m", "Gusb")))
+  
+}
+```
+
+
+```{r}
+biomark_DED1 <- sanitize_biomark("1362362586_DED#1.csv")
+biomark_DED2 <- sanitize_biomark("1362362588_DED#2.csv")
+biomark_DED3 <- sanitize_biomark("1362362587_Mixl1KO-HIO .csv")
+biomark_DED4 <- sanitize_biomark("1362419391_hepatocytes.csv")
+biomark_DED5 <- sanitize_biomark("1362627095_C32-DPVR and Anai samples.csv")
+biomark_DED6 <- sanitize_biomark("1362627146_ BioMark  MixL1KOs and Anai samples.csv")
+```
+```{r}
+#plate description
+plate <- c(rep("1",nrow(biomark_DED1)), 
+           rep("2",nrow(biomark_DED2)), 
+           rep("3",nrow(biomark_DED3)), 
+           rep("4",nrow(biomark_DED4)),
+           rep("5",nrow(biomark_DED5)),
+           rep("6",nrow(biomark_DED6)))
+length(plate) 
+```
+
+
+```{r}
+
+DED <- bind_rows(biomark_DED1, biomark_DED2, biomark_DED3, biomark_DED4,biomark_DED5, biomark_DED6)
+
+DEDdat <- as.data.frame(DED[,-1])
+head(DEDdat)
+```
+
+
+```{r}
+DED$NewName <- DED$Name
+
+#Sample curation 
+DED$NewName[(which(DED$Name == "FA3 Day 1 RD*"))] <- "FA3 Day 1 RD"
+DED$NewName[(which(DED$Name == "FA3 Day 2 RD*"))] <- "FA3 Day 2 RD"
+DED$NewName[(which(DED$Name == "FA3 Day 3 RD*"))] <- "FA3 Day 3 RD"
+DED$NewName[(which(DED$Name == "FA3 Day 4 RD*"))] <- "FA3 Day 4 RD"
+DED$NewName[(which(DED$Name == "FB1 Day1 A*"))] <- "FB1 day1 A"
+
+DED$NewName[(which(DED$Name == "FA2  day2 B (H1)*"))] <- "FA2 day2 B"
+DED$NewName[(which(DED$Name == "FA2 day1 A (D1)*"))] <- "FA2 day1 A"
+DED$NewName[(which(DED$Name == "MB3 day1 A (H8)*"))] <- "MB3 Day1 A"
+DED$NewName[(which(DED$Name == "MB3 day2 A (C9)*"))] <- "MB3 Day2 A"
+
+DED$NewName[(which(DED$Name == "FA2  d2 A (G1)*"))] <- "FA2 day2 A"
+DED$NewName[(which(DED$Name == "FA2 d1 A (D1)*"))] <- "FA2 day1 A"
+DED$NewName[(which(DED$Name == "MB3 d1 A (H8)*"))] <- "MB3 Day1 A"
+DED$NewName[(which(DED$Name == "MB3 d2 A (C9)*"))] <- "MB3 Day2 A"
+
+DED$NewName[(which(DED$Name == "FA2 day2 A (G1)*"))] <- "FA2 day2 A"
+DED$NewName[(which(DED$Name == "FA2 day1 A (D1)*"))] <- "FA2 day1 A"
+DED$NewName[(which(DED$Name == "MB3 day1 A (H8)*"))] <- "MB3 Day1 A"
+DED$NewName[(which(DED$Name == "MB3 day2 A (C9)*"))] <- "MB3 Day2 A"
+
+DED$NewName[(which(DED$Name == "*FA2 day2 A (plate 1 G1)"))] <- "FA2 day2 A"
+DED$NewName[(which(DED$Name == "*FA2 day1 A (plate 1 D1)"))] <- "FA2 day1 A"
+DED$NewName[(which(DED$Name == "*FA2 day2 B (plate 1 H1)"))] <- "FA2 day2 B"
+DED$NewName[(which(DED$Name == "*FA3-1-No Dox D1 (hep biomark B5)"))] <- "FA3-1- No dox D1"
+DED$NewName[(which(DED$Name == "*FA3-1-No Dox D4 (hep biomark D5)"))] <- "FA3-1- No dox D4"
+DED$NewName[(which(DED$Name == "*FB1 day1 A (plate 2 D1)"))] <- "FB1 day1 A"
+DED$NewName[(which(DED$Name == "*MB3 day1 A (plate 1 H8)"))] <- "MB3 Day1 A"
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D0 (IO biomark A1)"))] <- "MB3MixL1KO A D0 (#17)" #to check with Nicole
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D1 (IO biomark D1)"))] <- "MB3MixL1KO A D1  (#17)" #to check with Nicole
+
+DED$NewName[(which(DED$Name == "*149br_BL2a D11 Control  1"))] <- "149br_BL2a D11 Control  1"
+DED$NewName[(which(DED$Name == "*149br_BL2a D4 Control  1"))] <- "149br_BL2a D4 Control  1"
+DED$NewName[(which(DED$Name == "*149br_BL2b D11 100mv 30min  1"))] <- "149br_BL2b D11 100mv 30min  1"
+DED$NewName[(which(DED$Name == "*149br_BL2b D4 100mv  30min  1"))] <- "149br_BL2b D4 100mv "
+DED$NewName[(which(DED$Name == "*C32-DVPR D0 A (2021 plate 1 biomark A1)"))] <- "C32-DVPR D0 A"
+DED$NewName[(which(DED$Name == "*C32-DVPR D1 1 Dox A (2021 plate 1 biomark G1)"))] <- "C32-DVPR D1 1 Dox A"
+DED$NewName[(which(DED$Name == "*C32-DVPR D1 No Dox A (2021 plate 1 biomark D1)"))] <- "C32-DVPR D1 No Dox A"
+DED$NewName[(which(DED$Name == "*FA2 day1 A (plate 1 D1)"))] <- "FA2 day1 A"
+DED$NewName[(which(DED$Name == "*FA2 day2 A (plate 1 G1)"))] <- "FA2 day2 A"
+DED$NewName[(which(DED$Name == "*FA2 day2 B (plate 1 H1)"))] <- "FA2 day2 B"
+DED$NewName[(which(DED$Name == "*FA3-1-No Dox D1 (hep biomark B5)"))] <- "FA3-1- No dox D1"
+DED$NewName[(which(DED$Name == "*FA3-1-No Dox D4 (hep biomark D5)"))] <- "FA3-1- No dox D4"
+DED$NewName[(which(DED$Name == "*FB1 day1 A (plate 2 D1)"))] <- "FB1 day1 A"
+DED$NewName[(which(DED$Name == "*MB2 IO Exp4 D0 6K clumps (IO biomark B5)"))] <- "MB2 IO Exp4 D0 6K clumps"
+DED$NewName[(which(DED$Name == "*MB2 IO Exp4 D3 6K clumps (IO biomark D5)"))] <- "MB2  IO Exp4 D3 6K clumps"
+DED$NewName[(which(DED$Name == "*MB3 day1 A (plate 1 H8)"))] <- "MB3 Day1 A"
+DED$NewName[(which(DED$Name == "*MB3 day2 A (plate 1 C9)"))] <- "MB3 Day2 A"
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D0 (IO biomark A1)"))] <- "MB3MixL1KO A D0 (#17)" #to check with Nicole
+DED$NewName[(which(DED$Name == "*MB3MixL1KO35 A D1 (IO biomark D1)"))] <- "MB3MixL1KO A D1  (#17)"
+
+
+#sARAH'S SAMPLES RENAME
+DED$NewName[(which(DED$Name == "MB2-3 st 3B"))] <- "MB2 3 st3B"
+DED$NewName[(which(DED$Name == "FA3-1- No dox D1"))] <- "FA3 1 D1 NoDox"
+DED$NewName[(which(DED$Name == "FA3-1- No dox D2"))] <- "FA3 1 D2 NoDox"
+DED$NewName[(which(DED$Name == "FA3-1- No dox D3"))] <- "FA3 1 D3 NoDox"
+DED$NewName[(which(DED$Name == "FA3-1- No dox D4"))] <- "FA3 1 D4 NoDox"
+DED$NewName[(which(DED$Name == "FA3-1- No dox st3B"))] <- "FA3 1 st3B NoDox"
+DED$NewName[(which(DED$Name == "FA3-2- No dox D1"))] <- "FA3 2 D1 NoDox"
+DED$NewName[(which(DED$Name == "FA3-2- No dox D2"))] <- "FA3 2 D2 NoDox"
+DED$NewName[(which(DED$Name == "FA3-2- No dox D3"))] <- "FA3 2 D3 NoDox"
+DED$NewName[(which(DED$Name == "FA3-2- No dox D4"))] <- "FA3 2 D4 NoDox"
+DED$NewName[(which(DED$Name == "FA3-2- No dox st2"))] <- "FA3 2 st2 NoDox"
+DED$NewName[(which(DED$Name == "FA3-2- No dox st3B"))] <- "FA3 2 st3B NoDox"
+DED$NewName[(which(DED$Name == "FA3-3- No Dox D1"))] <- "FA3 3 D1 NoDox"
+DED$NewName[(which(DED$Name == "FA3-3- No Dox D2"))] <- "FA3 3 D2 NoDox"
+DED$NewName[(which(DED$Name == "FA3-3- No Dox D3"))] <- "FA3 3 D3 NoDox"
+DED$NewName[(which(DED$Name == "FA3-3- No Dox D4"))] <- "FA3 3 D4 NoDox"
+DED$NewName[(which(DED$Name == "FA3-3- No Dox st2"))] <- "FA3 3 st2 NoDox"
+DED$NewName[(which(DED$Name == "FA3-3- No Dox st3B"))] <- "FA3 3 st3B NoDox"
+
+
+
+
+```
+
+
+
+```{r}
+### NO NORMALISATION
+#Table generation
+DED_dCT  <- cbind.data.frame( DED$NewName, DEDdat, plate)
+head(DED_dCT)
+DED_2dCT  <- cbind.data.frame( DED$NewName, 2^DEDdat, plate)
+head(DED_2dCT)
+```
+
+
+
+```{r}
+#Check control samples
+GeneIntersect <- c("DED$NewName", intersect(colnames(biomark_DED1), 
+                                    intersect(colnames(biomark_DED2),
+                                      intersect(colnames(DED), 
+                                        intersect(colnames(biomark_DED4),
+                                           intersect(colnames(biomark_DED5),  colnames(biomark_DED6)    ))))), "plate") #to only check common genes in the 4 plates. 
+DED_valid <- DED_dCT
+DED_Raw2plates <- as.data.frame(DED_valid  %>% filter(DED_valid $`DED$NewName` %in% c("FA2 day2 A", "FA2 day1 A", "MB3 Day1 A", "MB3 Day2 A", 
+                                                               "FA2 day2 B", "FA3 Day 1 RD", "FA3 Day 2 RD", "FA3 Day 3 RD", 
+                                                               "FA3 Day 4 RD", "FB1 day1 A", "FA3-1- No dox D1", "FA3-1- No dox D4", "FB1 day1 A", 
+                                                               "MB3 Day1 A", "MB3MixL1KO A D0 (#17)", "MB3MixL1KO A D1  (#17)", 
+                                                               "C32 DVPR D0 A", "C32 DVPR D1 1 Dox A", "C32 DVPR D1 No Dox A", 
+                                                               "MB2 IO Exp4 D0 6K clumps", "MB3MixL1KO A D1  (#17)",
+                                                               "149br_BL2a D11 Control  1", "149br_BL2a D4 Control  1", 
+                                                               "149br_BL2b D11 100mv 30min  1", "149br_BL2b D4 100mv "
+                                                               )))
+DED_Raw2plates <- DED_Raw2plates[,which(colnames(DED_Raw2plates) %in% GeneIntersect)]
+DED_Raw2plates[is.na(DED_Raw2plates)] <- 0
+
+TableRaw2plates <- DED_Raw2plates[,-c(1,ncol(DED_Raw2plates))]
+head(TableRaw2plates)
+```
+
+```{r}
+### NO NORMALISATION
+#Table generation
+DED_dCT  <- cbind.data.frame(DED$NewName, DEDdat, plate)
+
+#Check control samples
+GeneIntersect <- c("DED$NewName", intersect(colnames(biomark_DED1), 
+                                    intersect(colnames(biomark_DED2),
+                                      intersect(colnames(biomark_DED3), 
+                                        intersect(colnames(biomark_DED4),
+                                           intersect(colnames(biomark_DED5),  colnames(biomark_DED6)    ))))), "plate") #to only check common genes in the 4 plates. 
+DED_valid <- DED_dCT
+DED_RawAllplates <- as.data.frame(DED_valid  %>% filter(DED_valid $`DED$NewName` %in% c("FA2 day2 A", "FA2 day1 A", "MB3 Day1 A", "MB3 Day2 A"))) #only the 4 samples in common 
+                                                                                                                              
+DED_RawAllplates <- DED_RawAllplates[,which(colnames(DED_RawAllplates) %in% GeneIntersect)]
+DED_RawAllplates[is.na(DED_RawAllplates)] <- 0
+
+TableRawAllplates <- DED_RawAllplates[,-c(1,ncol(DED_RawAllplates))]
+head(TableRawAllplates)
+```
+
+
+```{r}
+#PCA
+PCA_TOT=PCA(TableRaw2plates)
+DED_Ctrl= DED_Raw2plates
+
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+
+PCA_data <- cbind.data.frame(PCAcoord12, DED_Ctrl$plate, DED_Ctrl$`DED$NewName`)
+
+colnames(PCA_data) <- c("PC1", "PC2", "plate", "Sample")
+
+
+#plot PCA
+p1 <- ggplot(PCA_data, aes(PC1,PC2, color=Sample, shape = plate)) +
+  geom_point( size=5) +
+  scale_colour_discrete()+
+  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+  #geom_text_repel(max.overlaps = 20)+
+  theme_bw()
+p1
+```
+
+```{r}
+#PCA
+PCA_TOT=PCA(TableRawAllplates)
+DED_Ctrl= DED_RawAllplates
+
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+
+PCA_data <- cbind.data.frame(PCAcoord12, DED_Ctrl$plate, DED_Ctrl$`DED$NewName`)
+
+colnames(PCA_data) <- c("PC1", "PC2", "plate", "Sample")
+
+
+#plot PCA
+p2 <- ggplot(PCA_data, aes(PC1,PC2, color=Sample, shape = plate)) +
+  geom_point( size=5) +
+  scale_colour_discrete()+
+  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+  #geom_text_repel(max.overlaps = 20)+
+  theme_bw()
+p2
+```
+
+
+
+```{r}
+#Cell Line annotation
+DED_dCT$CellLine <- substring(DED_dCT$`DED$NewName`, 1,3)
+DED_dCT$CellLine[190:229] <- rep(c("FA3", "MKO"), 20)
+DED_dCT$CellLine[270:284] <- rep("MKO", 15)
+levels(as.factor(DED_dCT$CellLine))
+```
+
+```{r}
+#Cell Line annotation
+DED_2dCT$CellLine <- substring(DED_2dCT$`DED$NewName`, 1,3)
+DED_2dCT$CellLine[190:229] <- rep(c("FA3", "MKO"), 20)
+DED_2dCT$CellLine[270:284] <- rep("MKO", 15)
+levels(as.factor(DED_2dCT$CellLine))
+```
+
+
+
+
+TAM PAPER
+
+```{r}
+DED_dCT_Pierre <- DED_dCT %>% filter(!(CellLine %in% c("149", "H9_", "HOI", "A81"))) #Cell Line from Anai
+unique(DED_dCT_Pierre$CellLine)
+DED_2dCT_Pierre <- DED_2dCT %>% filter(!(CellLine %in% c("149", "H9_", "HOI", "A81"))) #Cell Line from Anai
+unique(DED_2dCT_Pierre$CellLine)
+```
+```{r}
+#Remove FA2. it is not a great line
+DED_dCT_Pierre <- DED_dCT_Pierre %>% filter(!(CellLine %in% c("FA2")))
+DED_2dCT_Pierre <- DED_2dCT_Pierre %>% filter(!(CellLine %in% c("FA2")))
+unique(DED_dCT_Pierre$CellLine)                      
+unique(DED_2dCT_Pierre$CellLine)
+
+
+```
+
+
+```{r}
+#Days annotation
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , " RNA ", " ")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "MixL1", "M")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "dox", "Dox")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "4 days Dox", "96hDox")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "day", "D")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "Day", "D")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "No Dox", "NoDox")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "18hr Dox", "18hDox")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "C32", "FA3")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "-", " ")
+DED_dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_dCT_Pierre$`DED$NewName` , "  ", " ")
+
+
+list2 <- strsplit(DED_dCT_Pierre$`DED$NewName` , split = " ")
+annot_Pierre <- map_dfr(list2, ~as_data_frame(t(.)))
+DED_dCT_Pierre <- cbind.data.frame(DED_dCT_Pierre, annot_Pierre)
+
+colnames(DED_dCT_Pierre)[1] <- "Sample"
+
+```
+
+
+```{r}
+#Days annotation
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , " RNA ", " ")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "MixL1", "M")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "dox", "Dox")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "4 days Dox", "96hDox")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "day", "D")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "Day", "D")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "No Dox", "NoDox")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "18hr Dox", "18hDox")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "C32", "FA3")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "-", " ")
+DED_2dCT_Pierre$`DED$NewName`  <- str_replace_all(DED_2dCT_Pierre$`DED$NewName` , "  ", " ")
+
+
+list2 <- strsplit(DED_2dCT_Pierre$`DED$NewName` , split = " ")
+annot_Pierre <- map_dfr(list2, ~as_data_frame(t(.)))
+DED_2dCT_Pierre <- cbind.data.frame(DED_2dCT_Pierre, annot_Pierre)
+
+colnames(DED_2dCT_Pierre)[1] <- "Sample"
+
+```
+
+
+
+
+```{r}
+#Data analysis
+#PCA on definitive endoderm analysis. 
+DE_WT <- DED_dCT_Pierre %>% filter(plate %in% c("1","2")) 
+DE_WT$V4[is.na(DE_WT$V4)] <- "DE" 
+DE_WT <- DE_WT %>% filter(V4 == "DE")
+DE_WT <- DE_WT[-c(which(duplicated(DE_WT$Sample), arr.ind = TRUE)),]  #remove duplicates accross plates
+
+#remove genes with only NA
+DE_WT_noNA <- DE_WT[, colSums(is.na(DE_WT)) != nrow(DE_WT)]
+data_range <- 2:c(ncol(DE_WT_noNA)-7) #where the data is. The rest is annotation
+
+
+#PCA
+TABLE <- DE_WT_noNA
+class(TABLE[data_range])
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+p15 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
+          geom_point(size = 3) +
+          scale_colour_discrete()+
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          geom_text_repel(aes(label=Sample))+
+          theme_bw()+
+          coord_fixed(ratio=1)
+
+p15
+
+ggsave("DE_WT_PCA.pdf",p15 , width = 15, height = 10)
+
+```
+
+```{r}
+#Data analysis
+#As we can see there are 3 oultiers
+DE_WT_noOutlier <- DE_WT_noNA %>% filter(!(Sample %in% c("FB3 D2 1", "FB3 D2 2", "MA3 D3 C", "FB3 D1 3")))
+
+
+#PCA
+TABLE <- DE_WT_noOutlier
+
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+p16.1 <- ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
+          geom_point(size = 3) +
+          scale_colour_discrete()+
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          coord_fixed(ratio=1)
+
+p16.1
+
+p16.2 <- ggplot(PCA_data, aes(PC1,PC2, color=Plate,  shape= Day)) +
+          geom_point(size = 3) +
+          scale_colour_discrete()+
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          coord_fixed(ratio=1)
+
+p16.2
+
+p16.3 <- ggplot(PCA_data, aes(PC1,PC2, color=Day,  shape= CellLine)) +
+          geom_point(size = 3) +
+          scale_colour_discrete()+
+          scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          coord_fixed(ratio=1)
+
+p16.3
+
+
+ggsave("DE_WT_PCA_noOutliers_perCellLine.pdf",p16.1 , width = 7, height = 5)
+ggsave("DE_WT_PCA_noOutliers_perPlate.pdf",p16.2 , width = 7, height = 5)
+ggsave("DE_WT_PCA_noOutliers_perDay.pdf",p16.3 , width = 7, height = 5)
+```
+```{r}
+#UMAP
+library(uwot)
+
+TABLE <- DE_WT_noOutlier
+
+umap.table <- TABLE
+umap.table[is.na(umap.table)] <- 0
+
+umap.DE <- umap(umap.table, pca = 50 , init = "pca")
+
+
+umap_data <- cbind.data.frame(umap.DE, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(umap_data) <- c("UMAP1", "UMAP2", "Sample", "CellLine", "Day", "Plate")  
+
+p16.4 <- ggplot(umap_data, aes(UMAP1,UMAP2, color=CellLine,  shape= Day)) +
+          geom_point(size = 3) +
+          scale_colour_discrete()+
+          xlab(paste("UMAP1"))+
+          ylab(paste("UMAP2"))+
+          theme_bw()
+
+p16.4
+
+```
+
+
+```{r}
+#Eigen score plot
+PCA_data_DEscore <- PCA_data %>% filter (Day == "D4") %>%  group_by(CellLine) %>% summarise(mean = mean(PC1), n = n())
+PCA_data_DEscore$CellLine <- factor(PCA_data_DEscore$CellLine, levels = PCA_data_DEscore$CellLine[order(PCA_data_DEscore$mean,decreasing = T)])
+
+
+p18 <- ggplot(PCA_data_DEscore, aes(x= CellLine, y=mean, group=CellLine)) +
+  geom_point(size = 5)+
+  guides(x = guide_axis(angle = 90))+
+  theme_bw()+
+  ylab("Pseudotime")+
+  theme(strip.text.x = element_text(size = 30),
+        legend.title = element_text(size = 30),
+        legend.text  = element_text(size = 26), 
+        axis.text.x  = element_text(size = 22),
+        axis.text.y  = element_text(size = 22), 
+        axis.title   = element_text(size = 26))+
+    coord_fixed(ratio=0.5)
+
+p18
+
+
+
+p19 <- ggplot(PCA_data, aes(x= CellLine, y=PC1, color=Day)) +
+  geom_point(size = 5)+
+  guides(x = guide_axis(angle = 90))+
+  theme_bw()+
+  ylab("Pseudotime")+
+  theme(strip.text.x = element_text(size = 30),
+        legend.title = element_text(size = 30),
+        legend.text  = element_text(size = 26), 
+        axis.text.x  = element_text(size = 22),
+        axis.text.y  = element_text(size = 22), 
+        axis.title   = element_text(size = 26))+
+    coord_fixed(ratio=0.5)
+
+p19
+
+
+ggsave("DE_WT_Pseudotime_Day4.pdf",p18 , width = 7, height = 5)
+ggsave("DE_WT_Pseudotime_AllDay_AllRep.pdf",p19 , width = 7, height = 5)
+
+cols <- c("FA3" = "#C4D82E")
+
+#PCA with Day 0 only
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D0")
+
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+
+p16.4 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+          geom_point(size = 3) +
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+          scale_colour_manual(values = cols)+
+          theme(legend.position="none")+
+          theme(aspect.ratio = 1)
+p16.4
+ggsave("DE_WT_PCA_D0_AllRep.pdf",p16.4 , width = 7, height = 5)
+
+#PCA with Day 1 only
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D1")
+
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+p16.5 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+          geom_point(size = 3) +
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+          scale_colour_manual(values = cols)+
+          theme(legend.position="none")+
+          theme(aspect.ratio = 1)
+          
+p16.5
+ggsave("DE_WT_PCA_D1_AllRep.pdf",p16.5 , width = 7, height = 5)
+
+
+
+#PCA with Day 2 only
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D2")
+
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+p16.6 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+          geom_point(size = 3) +
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+          scale_colour_manual(values = cols)+
+          theme(legend.position="none")+
+          theme(aspect.ratio = 1)
+p16.6
+ggsave("DE_WT_PCA_D2_AllRep.pdf",p16.6 , width = 7, height = 5)
+
+
+#PCA with Day 3 only
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D3")
+
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+p16.7 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+          geom_point(size = 3) +
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+          scale_colour_manual(values = cols)+
+          theme(legend.position="none")+
+          theme(aspect.ratio = 1)
+          
+p16.7
+ggsave("DE_WT_PCA_D3_AllRep.pdf",p16.7 , width = 7, height = 5)
+
+
+
+#PCA with Day 4 only
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D4")
+
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord123 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2],PCAcoord[,3])
+
+PCA_data <- cbind.data.frame(PCAcoord123, TABLE$Sample, TABLE$CellLine, TABLE$V2, TABLE$plate)
+
+colnames(PCA_data) <- c("PC1", "PC2", "PC3", "Sample", "CellLine", "Day", "Plate")  
+
+p16.8 <- ggplot(PCA_data, aes(PC1,PC2, shape=CellLine, colour = CellLine)) +
+          geom_point(size = 3) +
+          xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+          ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+          theme_bw()+
+          scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+          scale_colour_manual(values = cols)+
+          theme(legend.position="none")+
+          theme(aspect.ratio = 1)
+          
+p16.8
+ggsave("DE_WT_PCA_D4_AllRep.pdf",p16.8 , width = 7, height = 5)
+
+```
+
+
+```{r}
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D1")
+PCA_TOT = PCA(TABLE[,data_range] , scale.unit=T,ncp=5, axes = c(1,2))
+
+options(ggrepel.max.overlaps = Inf)
+
+PCA_D1_variables <- fviz_pca_var(PCA_TOT, choix = "var", repel = T, col.var= "coord")+
+  scale_color_gradient2(low="blue", mid="white", high="red", midpoint=0.15)+
+  #geom_label_repel(label = rownames(PCA_TOT$var$coord), )+
+  theme_bw()
+PCA_D1_variables
+
+ggsave("DE_WT_PCA_D1_AllRep_gene.pdf", PCA_D1_variables , width =10, height =7)
+
+```
+
+```{r}
+#Gene expression time course 
+#for gene track I prefer to use 2dCt as it is easier to read. 
+DE_WT <- DED_2dCT_Pierre %>% filter(plate %in% c("1","2")) 
+DE_WT$V4[is.na(DE_WT$V4)] <- "DE" 
+DE_WT <- DE_WT %>% filter(V4 == "DE")
+DE_WT <- DE_WT[-c(which(duplicated(DE_WT$Sample), arr.ind = TRUE)),] #remove duplicates accross plates
+
+#remove genes with only NA
+DE_WT_noNA <- DE_WT[, colSums(is.na(DE_WT)) != nrow(DE_WT)]
+DE_WT_noOutlier_2dCt <- DE_WT_noNA %>% filter(!(Sample %in% c("FB3 D2 1", "FB3 D2 2", "MA3 D3 C", "FB3 D1 3")))
+```
+
+
+```{r}
+
+TABLE <- DE_WT_noOutlier_2dCt 
+#Gastrulation + Endoderm
+ggline(TABLE, x = "V2", y = c("Mixl1", "Eomes", "T", "Gsc", "Fgf8", "Mesp1"), combine = T,
+              add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+              theme_bw()
+
+
+#ENDO2
+ggline(TABLE, x = "V2", y = c("Gsc", "Krt19", "Tbx6", "Lhx1", "Nodal", "Fgf8"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  theme_bw()
+
+
+#MESO
+ggline(TABLE, x = "V2", y = c("Hand2", "Mesp1", "Gata2", "Kdr", "Pdgfra", "Cd34"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  theme_bw()
+
+
+#ECTO
+ggline(TABLE, x = "V2", y = c("Krt10", "Sox1", "Nes", "Foxd3", "Pax6", "Dcx"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  theme_bw()
+
+
+#PLURI
+ggline(TABLE, x = "V2", y = c("Pou5f1", "Nanog", "Sox2", "Prdm14", "Zfp42", "Fgf5"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  theme_bw()
+
+
+#PLURI
+ggline(TABLE, x = "V2", y = c("Fgf8","Pou5f1", "Nanog" ,"Krt19", "Sox2", "Zfp42"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  ylab("2dCt")+
+  theme_bw()
+
+
+
+```
+
+```{r}
+#HEATMAP
+TABLE <- DE_WT_noOutlier %>% filter(CellLine %in% c("FA1", "FA2", "FA3")) %>% filter(V2 == "D1") 
+TABLE[is.na(TABLE)] <- -15
+
+Treat_df_DE_WT <- data.frame("Day" = TABLE$V2, "CellLine" = TABLE$CellLine, "plate" = TABLE$plate)
+nrow(Treat_df_DE_WT)
+rownames(Treat_df_DE_WT) <- TABLE$Sample # name matching
+
+dat_mat <- as.matrix(TABLE[,-c(1,2, c(c(ncol(TABLE)-6):c(ncol(TABLE))))])
+dat_mat[is.na(dat_mat)] <- -15 
+rownames(dat_mat) <- TABLE$Sample
+
+#select the top genes based on variance
+Var <- apply(t(dat_mat), 1, var)
+var_order <- as.matrix(sort(Var,decreasing = T))
+
+dat_mat_topVar <- dat_mat[, c(which(colnames(dat_mat) %in% rownames(var_order)[1:50], arr.ind = TRUE))] #c(length(var_order)-10)
+
+ann_colors = list(
+  CellLine= c(FA1 = "black", FA2 = "darkgreen", FA3 = "lightgreen")
+)
+
+
+p21 <- pheatmap(t(dat_mat_topVar), clustering_method = "ward", scale = "row",
+         annotation_col = Treat_df_DE_WT, clustering_distance_rows = "canberra", color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+         annotation_colors = ann_colors,
+         cellwidth = 4,
+         cellheight = 4,
+         fontsize = 3 )
+
+p21
+
+ggsave("DE_WT_heatmap_FA_D1.pdf",p21 , width = 15, height = 10)
+
+
+
+#HEATMAP all lines day4
+TABLE <- DE_WT_noOutlier %>% filter(V2 == "D4") 
+
+
+Treat_df_DE_WT <- data.frame("Day" = TABLE$V2, "CellLine" = TABLE$CellLine, "plate" = TABLE$plate)
+nrow(Treat_df_DE_WT)
+rownames(Treat_df_DE_WT) <- TABLE$Sample # name matching
+
+dat_mat <- as.matrix(TABLE[,-c(1,2, c(c(ncol(TABLE)-6):c(ncol(TABLE))))])
+dat_mat[is.na(dat_mat)] <- -15 
+rownames(dat_mat) <- TABLE$Sample
+
+#select the top genes based on variance
+Var <- apply(t(dat_mat), 1, var)
+var_order <- as.matrix(sort(Var,decreasing = T))
+
+dat_mat_topVar <- dat_mat[, c(which(colnames(dat_mat) %in% rownames(var_order)[1:50], arr.ind = TRUE))] #c(length(var_order)-10)
+
+
+p21.2 <- pheatmap(t(dat_mat_topVar), clustering_method = "ward", scale = "row",
+         annotation_col = Treat_df_DE_WT, clustering_distance_rows = "canberra", color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+         cellwidth = 4,
+         cellheight = 4,
+         fontsize = 3 )
+
+p21.2
+
+ggsave("DE_WT_heatmap_AllLines_D4.pdf",p21.2 , width = 15, height = 10)
+
+```
+
+
+
+
+```{r}
+#select only 2 isogenic sets
+as.factor(DE_WT_noOutlier_2dCt$V2)
+
+TABLE_short <- DE_WT_noOutlier_2dCt %>% filter(CellLine %in% c("FB1"))
+                                                 
+                                                 #c("MB1", "MB2", "MB3", "FA1", "FA3", "MA1", "MA2", "MA3", "FB2", "FB3"))
+class(TABLE_short$V2)
+factor(TABLE_short$V2)
+
+p22 <- ggline(TABLE_short, x = "V2", y = c("Eomes","Mixl1","Foxa2","Sox17", "Cxcr4", "Fgf8", "Gata6", "Gata4"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  theme_bw()+
+  ylab("2dCt")+
+  theme(strip.text.x = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text  = element_text(size = 18), 
+        axis.text.x  = element_text(size = 16),
+        axis.text.y  = element_text(size = 16), 
+        axis.title   = element_text(size = 18))
+  
+p22
+
+
+p23 <- ggline(TABLE_short, x = "V2", y = c("Pou5f1","Nanog","","Zfp42", "Kdr", "Hand1"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1, scales = "free_y")+
+  theme_bw()+
+  ylab("dCt")+
+  theme(strip.text.x = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text  = element_text(size = 18), 
+        axis.text.x  = element_text(size = 16),
+        axis.text.y  = element_text(size = 16), 
+        axis.title   = element_text(size = 18))
+  
+p23
+
+
+```
+
+```{r}
+#Gene expression boxplot per day
+DE_WT_noOutlier_2dCt$CellLine <- factor(DE_WT_noOutlier_2dCt$CellLine, levels = c("FA1", "FA2", "FA3","FB1", "FB2", "FB3","MA1", "MA2", "MA3","MB1", "MB2", "MB3"))
+
+p24 <- ggboxplot(DE_WT_noOutlier_2dCt, x = "CellLine", y = "Mixl1",
+          add = c("mean_se", "point"),
+          color = "CellLine",
+          fill = "CellLine", alpha = 0.3)+
+          theme_bw()+
+          facet_grid(~V2)+
+          rremove("x.grid")+
+          rremove("x.text")+
+          rremove("x.ticks")
+
+p24
+
+ggsave("DE_Mixl1.pdf",p24 , width = 7, height = 5)
+```
+
+```{r}
+#Gene expression boxplot per day
+p25 <- ggboxplot(DE_WT_noOutlier_2dCt, x = "CellLine", y = "Gsc",
+          add = c("mean_se", "point"),
+          color = "CellLine",
+          fill = "CellLine", alpha = 0.3, guide= F)+
+          theme_bw()+
+          facet_grid(~V2)+
+          rremove("x.grid")+
+          rremove("x.text")+
+          rremove("x.ticks")
+
+p25
+ggsave("DE_Gsc.pdf",p25 , width = 7, height = 5)
+```
+
+```{r}
+#Gene expression boxplot per day
+Gene_boxp <- ggboxplot(DE_WT_noOutlier_2dCt, x = "CellLine", y = "Lhx1",
+          add = c("mean_se", "point"),
+          color = "CellLine",
+          fill = "CellLine", alpha = 0.3, guide= F)+
+          theme_bw()+
+          facet_grid(~V2)+
+          rremove("x.grid")+
+          rremove("x.text")+
+          rremove("x.ticks")
+Gene_boxp
+
+ggsave("DE_Lhx1.pdf",Gene_boxp ,width = 7, height = 5)
+```
+
+```{r}
+Gene_boxp <- ggboxplot(DE_WT_noOutlier_2dCt, x = "CellLine", y = "T",
+          add = c("mean_se", "point"),
+          color = "CellLine",
+          fill = "CellLine", alpha = 0.3, guide= F)+
+          theme_bw()+
+          facet_grid(~V2)+
+          rremove("x.grid")+
+          rremove("x.text")+
+          rremove("x.ticks")
+
+options(repr.plot.width = 16, repr.plot.height = 10)
+Gene_boxp
+
+ggsave("DE_T.pdf",Gene_boxp , width = 7, height = 5)
+```
+
+```{r}
+Gene_boxp <- ggboxplot(DE_WT_noOutlier_2dCt, x = "CellLine", y = "Fgf8",
+          add = c("mean_se", "point"),
+          color = "CellLine",
+          fill = "CellLine", alpha = 0.3, guide= F)+
+          theme_bw()+
+          facet_grid(~V2)+
+          rremove("x.grid")+
+          rremove("x.text")+
+          rremove("x.ticks")
+
+Gene_boxp
+
+ggsave("DE_Fgf8.pdf",Gene_boxp , width = 7, height = 5)
+
+```
+
+
+```{r}
+
+#DEGs analysis
+## ANOVA + Tukey HSD
+TABLE_DEGs <- DE_WT_noOutlier_2dCt %>% filter( V2 == "D2")
+TABLE_DEGs[is.na(TABLE_DEGs)] <- -15 
+#TABLE_DEGs <- TABLE_DEGs[,-37] #hand2 is not expressed at Day4 only
+
+ANOVA_run <- tibble(Gene = character(),Day = integer(), pval = double())
+sink('ANOVA+Tukey_Day_1.txt')
+list_of_genes <- tibble(Gene=integer())
+
+  for (i in 3:90){
+    Genes = colnames(TABLE_DEGs)[i]
+    temp_aov <- TABLE_DEGs %>% select (GOI = Genes, CellLine)
+    try(aov_model <- aov(GOI ~ CellLine, data=temp_aov), silent = T)
+    pvalue = summary(aov_model)[[1]][["Pr(>F)"]][1]
+    if (!is.null(pvalue)){
+      if (pvalue < 0.5) {
+        print(Genes)
+        list_of_genes <- add_row(list_of_genes, Gene=i)
+        print(TukeyHSD(aov_model))
+      }}
+    ANOVA_run <- add_row(ANOVA_run, Gene=Genes, pval = pvalue)
+  }
+
+sink()
+
+
+ANOVA_run_signif <- ANOVA_run %>% filter(pval <= 0.05)
+```
+
+
+
+
+
+
+Hepatoblast diff
+```{r cars}
+
+
+Table <- DED_dCT_Pierre %>% filter(plate == 4) %>% filter(!(V3 %in% c("18hDox", "96hDox"))) %>% filter(!(V3 %in% c("A")))
+Table[is.na(Table)] <- -15
+
+#PCA
+PCA_TOT=PCA(Table[,3:102])
+
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+
+PCA_data <- cbind.data.frame(PCAcoord12, Table$V1, Table$V3)
+
+colnames(PCA_data) <- c("PC1", "PC2", "CellLine", "Condition")
+
+PCA <- ggplot(PCA_data, aes(PC1,PC2, color= Condition, shape = CellLine)) +
+  geom_point( size=5) +
+  #scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+  #geom_text_repel()+
+  theme_bw()
+PCA
+
+```
+
+
+
+```{r}
+#DEGs analysis
+## ANOVA + Tukey HSD
+Table <- DED_2dCT_Pierre %>% filter(plate == 4) %>% filter(!(V3 %in% c("18hDox", "96hDox"))) %>% filter(!(V3 %in% c("A")))
+TABLE_DEGs <- Table %>% filter( V3 == "st3B")
+TABLE_DEGs[is.na(TABLE_DEGs)] <- -15 
+#TABLE_DEGs <- TABLE_DEGs[,-37] #hand2 is not expressed at Day4 only
+```
+
+```{r}
+ANOVA_run <- tibble(Gene = character(),Day = integer(), pval = double())
+sink('ANOVA+Tukey_Hep_St3B.txt')
+list_of_genes <- tibble(Gene=integer())
+
+  for (i in 3:107){
+    Genes = colnames(TABLE_DEGs)[i]
+    temp_aov <- TABLE_DEGs %>% select (GOI = Genes, V1)
+    try(aov_model <- aov(GOI ~ V1, data=temp_aov), silent = T)
+    pvalue = summary(aov_model)[[1]][["Pr(>F)"]][1]
+    if (!is.null(pvalue)){
+      if (pvalue < 0.5) {
+        print(Genes)
+        list_of_genes <- add_row(list_of_genes, Gene=i)
+        print(TukeyHSD(aov_model))
+      }}
+    ANOVA_run <- add_row(ANOVA_run, Gene=Genes, pval = pvalue)
+  }
+
+sink()
+```
+
+
+```{r}
+TABLE_DEGs_long <- TABLE_DEGs %>% pivot_longer(TABLE_DEGs, cols = c(3:107), names_to = "Gene", values_to = "dCt")
+
+GeneList <- c("Eno1", "Fabp7")
+GeneList <- c("A1AT", "ADH1B", "AFP", "ALB", "CEPBA", "CYP1A1", "CYP2C19")
+
+
+toplot <- TABLE_DEGs_long %>% filter(Gene %in% GeneList)
+
+ggboxplot(data = toplot, x = "CellLine", y = "dCt", facet.by = "Gene", scales = "free_y")
+
+
+
+```
+
+
+
+
+
+HIO diff
+```{r cars}
+
+
+TableHIO <- DED_dCT_Pierre %>% filter(V2 == "IO") %>% filter(!(Sample == "MB2 IO pool p3 in house")) %>% filter(!(CellLine == "FA2"))
+TableHIO[is.na(TableHIO)] <- -15
+
+#PCA
+PCA_TOT=PCA(TableHIO[,3:102])
+
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+
+PCA_data <- cbind.data.frame(PCAcoord12, TableHIO$V1, TableHIO$V4)
+
+colnames(PCA_data) <- c("PC1", "PC2", "CellLine", "Condition")
+
+PCA <- ggplot(PCA_data, aes(PC1,PC2, color= Condition, shape = CellLine)) +
+  geom_point( size=5) +
+  #scale_shape_manual(values=1:length(unique(PCA_data$CellLine)))+
+  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+  theme_bw()
+PCA
+
+ggsave("PCA_HIO.pdf",PCA , width = 7, height = 5)
+
+```
+
+
+
+
+
+
+```{r}
+DEDiff$CellLineDox <- paste(DEDiff$CellLine, DEDiff$Dox)
+unique(DEDiff$CellLineDox)
+
+TABLE_Dox <-DEDiff %>% filter(CellLineDox == c("MB3 N/A", "MKO N/A", "FA3 N/A", "FA3 18hDox"))
+
+#TABLE_KO$Day <- factor(TABLE_KO$Day, levels = c("0","1","2","3","4"))
+TABLE_Dox$Day <- as.numeric(TABLE_Dox$Day)
+
+class(TABLE_Dox$Day)
+length(TABLE_Dox$Mixl1)
+```
+
+```{r}
+TC10 <- ggline(TABLE_Dox, x = "Day", y = c("Mixl1"), combine = T,
+       add = c("mean_se"), color = "CellLineDox", size=1)+
+  theme_bw()
+options(repr.plot.width = 6, repr.plot.height = 5)
+TC10
+```
+
+```{r}
+#PCA
+TABLE <- DEDiff %>% filter(CellLine == c("MB3", "MKO"))
+
+PCA_TOT <- PCA(TABLE[,-c(1,90:ncol(TABLE))] , scale.unit=T,ncp=5, axes = c(1,2))
+PCAcoord <- as.data.frame(PCA_TOT$ind)
+PCAcoord12 <- cbind.data.frame(PCAcoord[,1], PCAcoord[,2])
+PCA_data <- cbind.data.frame(PCAcoord12, TABLE$`DED$NewName`, TABLE$CellLine, TABLE$Day,  
+                             TABLE$Lab, TABLE$Scient, TABLE$Mixl1, TABLE$Sox17,TABLE$Dox, TABLE$plate)
+colSamples(PCA_data) <- c("PC1", "PC2", "Sample", "CellLine", "Day", 
+                        "Lab", "Scientist", "Mixl1", "Sox17", "Dox", "plate") 
+```
+
+```{r}
+ggplot(PCA_data, aes(PC1,PC2, color=CellLine,  shape= Day)) +
+  geom_point(size = 3) +
+  scale_colour_discrete()+
+  #scale_shape_identity()+
+  #scale_colour_viridis(option = "plasma")+
+  xlab(paste("PC1", "(",round(PCA_TOT$eig[1,2], 2), "% )"))+
+  ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
+  #geom_text_repel(aes(label=CellLine))+
+  theme_bw()+
+  coord_fixed(ratio=1)
+```
+
+```{r}
+TC11 <- ggline(TABLE, x = "Day", y = c("Foxa2","Sox17", "Cxcr4", "Fgf8", "Gata6", "Gata4"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1)+
+  theme_bw()+ 
+  ylab("dCt")+
+  theme(strip.text.x = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text  = element_text(size = 18), 
+        axis.text.x  = element_text(size = 16),
+        axis.text.y  = element_text(size = 16), 
+        axis.title   = element_text(size = 18))
+  
+options(repr.plot.width = 15, repr.plot.height = 12)
+TC11
+```
+
+```{r}
+TC12 <- ggline(TABLE, x = "Day", y = c("Mixl1", "Eomes", "T"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1)+
+  theme_bw()+ 
+  ylab("dCt")+
+  theme(strip.text.x = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text  = element_text(size = 18), 
+        axis.text.x  = element_text(size = 16),
+        axis.text.y  = element_text(size = 16), 
+        axis.title   = element_text(size = 18))
+  
+options(repr.plot.width = 15, repr.plot.height = 6)
+TC12
+```
+
+```{r}
+TC13 <- ggline(TABLE, x = "Day", y = c("Pax6", "Klf5", "Hand1", "Hand2", "Mesp1", "Runx1"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1)+
+  theme_bw()+ 
+  ylab("dCt")+
+  theme(strip.text.x = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text  = element_text(size = 18), 
+        axis.text.x  = element_text(size = 16),
+        axis.text.y  = element_text(size = 16), 
+        axis.title   = element_text(size = 18))
+  
+options(repr.plot.width = 15, repr.plot.height = 12)
+TC13
+```
+
+```{r}
+TC14 <- ggline(TABLE, x = "Day", y = c("Gsc", "Kdr", "Pdgfra"), combine = T,
+       add = c("mean_se"), color = "CellLine", size=1)+
+  theme_bw()+ 
+  ylab("dCt")+
+  theme(strip.text.x = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        legend.text  = element_text(size = 18), 
+        axis.text.x  = element_text(size = 16),
+        axis.text.y  = element_text(size = 16), 
+        axis.title   = element_text(size = 18))
+  
+options(repr.plot.width = 15, repr.plot.height = 6)
+TC14
+```
+
+
+
