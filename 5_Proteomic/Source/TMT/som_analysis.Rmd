@@ -1,0 +1,382 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+
+#Test if BioManager is installed
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install()
+}
+
+# load pacman package manager
+if (!require(pacman)) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(optparse)
+p_load(tictoc)
+p_load(tidyverse)
+p_load(plotly)
+p_load(vroom)
+p_load(writexl)
+p_load(ggplot2)
+p_load(GGally)
+p_load(ggpubr)
+p_load(magrittr)
+p_load(knitr)
+p_load(rlang)
+p_load(ggrepel)
+p_load(gridExtra)
+p_load(tictoc)
+
+p_load(limma)
+p_load(qvalue)
+p_load(ruv)
+p_load(mixOmics)
+
+p_load(ProteomeRiver)
+p_load(configr)
+p_load(logging)
+p_load(svglite)
+p_load(kohonen)
+p_load(diceR)
+```
+
+
+
+```{r}
+base_dir <-  here::here() 
+data_dir <- file.path( base_dir, "Data")
+results_dir <- file.path(base_dir, "Results")
+source_dir <- file.path(base_dir, "Source")
+sourceRmdFile( file.path( source_dir, "Self_Organising_Maps",  "Common", "soms_functions.Rmd" ))
+
+soms_dir <- file.path(results_dir, "TMT", "SOMS_Analysis")
+createDirIfNotExists(soms_dir)
+
+```
+
+```{r}
+
+design_mat <- vroom::vroom( file.path(source_dir, "TMT", "design_matrix.tab" )  ) 
+```
+
+
+
+```{r}
+norm_counts_tbl <- vroom::vroom( file.path(results_dir, "TMT", "de_proteins", "normalized_counts_after_ruv.tsv"))
+```
+```{r}
+de_protens_long <- vroom::vroom( file.path(results_dir, "TMT", "de_proteins", "de_proteins_long.tsv"))
+
+```
+
+```{r}
+
+de_protens_long %>%
+  dplyr::distinct(uniprot_acc)
+
+
+
+de_protens_long %>%
+  dplyr::distinct(comparison)
+
+
+mutant_data <- de_protens_long %>%
+  dplyr::mutate( significance = case_when( q.mod < 0.05 & log2FC > 0 ~ "Up",
+                                           q.mod < 0.05 & log2FC < 0 ~ "Down",
+                                           TRUE ~ NA_character_)) %>% 
+  dplyr::filter ( comparison %in% c("MB3MKO.vs.MB3", 
+                                     "FA3DOX.vs.FA3MKO", 
+                                     "FA3DOX.vs.FA3", 
+                                     "FA3MKO.vs.FA3") )  %>%
+ dplyr::select( uniprot_acc, significance, comparison) %>%
+  pivot_wider( values_from = significance,
+               names_from  = comparison)
+
+protein_sig_up_counts <- de_protens_long %>%
+  dplyr::filter( q.mod < 0.05 & log2FC > 0 ) %>% 
+  dplyr::filter ( !comparison %in% c("MB3MKO.vs.MB3", 
+                                     "FA3DOX.vs.FA3MKO", 
+                                     "FA3DOX.vs.FA3", 
+                                     "FA3MKO.vs.FA3") )  %>%
+  group_by( uniprot_acc) %>%
+  summarise ( counts = n()) %>%
+  ungroup() %>%
+  left_join(mutant_data, by="uniprot_acc") 
+
+protein_sig_down_counts <- de_protens_long %>%
+  dplyr::filter( q.mod < 0.05 & log2FC < 0 ) %>% 
+  dplyr::filter ( !comparison %in% c("MB3MKO.vs.MB3", 
+                                     "FA3DOX.vs.FA3MKO", 
+                                     "FA3DOX.vs.FA3", 
+                                     "FA3MKO.vs.FA3") )  %>%
+  group_by( uniprot_acc) %>%
+  summarise ( counts = n()) %>%
+  ungroup()%>%
+  left_join(mutant_data, by="uniprot_acc")
+
+
+
+selected_proteins <- protein_sig_up_counts %>%
+  bind_rows(protein_sig_down_counts ) %>%
+  dplyr::filter( counts >= 10) %>%
+  dplyr::mutate( first_uniprot_acc = str_split( uniprot_acc, ":") %>% purrr::map_chr(1)) %>%
+  distinct( first_uniprot_acc )
+
+selected_proteins %>%
+  vroom::vroom_write( file.path(soms_dir, "selected_list_of_proteins.tab" ) )
+
+
+```
+
+
+```{r}
+
+uniprot_tbl <- vroom::vroom(file.path(data_dir, "UniProt", "data.tab") ) 
+
+significant_up_or_down_all_samples <- protein_sig_up_counts %>%
+  mutate( direction = "Up") %>%
+  bind_rows(protein_sig_down_counts %>%
+  mutate( direction = "Down") ) %>%
+  dplyr::filter( counts >= 10) %>%
+  dplyr::mutate( first_uniprot_acc = str_split( uniprot_acc, ":") %>% purrr::map_chr(1)) %>%
+  left_join( uniprot_tbl , by=c("first_uniprot_acc" =  "Entry") ) %>%
+  dplyr::select(-uniprot_acc) %>%
+  relocate( first_uniprot_acc, .before="counts") %>%
+  dplyr::rename( Uniprot_Acc = "first_uniprot_acc") %>%
+  dplyr::relocate( direction, .before="counts") %>%
+  dplyr::select(-counts)
+
+significant_up_or_down_all_samples
+
+vroom::vroom_write(significant_up_or_down_all_samples, file.path( soms_dir, "selected_list_of_proteins_detailed.tab"))
+writexl::write_xlsx(significant_up_or_down_all_samples,  file.path( soms_dir, "selected_list_of_proteins_detailed.xlsx") )
+```
+
+
+
+```{r}
+enriched_proteins <- vroom::vroom( file.path( results_dir, 
+                                              "TMT", 
+                                              "SOMS_Analysis", 
+                                              "Old",
+                                              "gProfiler_Results", 
+                                              "gProfiler_hsapiens_03-05-2022_15-18-12__intersections.csv" )  )
+
+enriched_proteins_cln <- enriched_proteins %>%
+  dplyr::mutate ( term = case_when( term_id %in% c("GO:0006123",
+                                                    "GO:0045277",
+                                                    "GO:0005751",
+                                                    "WP:WP4922") ~ "mitochondrial respiratory chain complex IV",
+                                     
+                                     term_id %in% c("GO:0071027",
+                                                    "GO:0016075",
+                                                    "GO:0071051",
+                                                    "GO:0071025",
+                                                    "GO:0000176",
+                                                    "GO:0000178",
+                                                    "GO:1905354",
+                                                    "REAC:R-HSA-450385",
+                                                    "CORUM:7443",
+                                                    "CORUM:789",
+                                                    "CORUM:788" ) ~ "exosome"
+  )) %>%
+  dplyr::mutate(intersections = str_split(intersections, ",")) %>%
+  unnest(intersections) %>% 
+  dplyr::rename( uniprot_acc = "intersections") %>%
+  distinct(term, uniprot_acc) %>%
+  arrange( term, uniprot_acc)
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+norm_counts_longer <- norm_counts_tbl %>%
+  pivot_longer( cols=contains("SET"),
+                names_to="Sample_ID") %>%
+  left_join( design_mat, by=c("Sample_ID" = "Sample_ID") ) %>%
+  group_by( uniprot_acc, group) %>%
+  dplyr::summarise( value = mean(value)) %>%
+  ungroup()
+
+
+less_stringent_filtering <- protein_sig_up_counts %>%
+  bind_rows(protein_sig_down_counts ) %>%
+  dplyr::filter( counts >= 6 & (
+    !is.na(`FA3DOX.vs.FA3MKO`) |  
+      !is.na(`FA3DOX.vs.FA3`) |  
+      !is.na(`FA3MKO.vs.FA3`) ))  %>%
+  dplyr::mutate( first_uniprot_acc = str_split( uniprot_acc, ":") %>% purrr::map_chr(1)) %>%
+  distinct( first_uniprot_acc )
+  
+
+norm_counts_longer_filt <- norm_counts_longer %>%
+  dplyr::inner_join(less_stringent_filtering, by = c("uniprot_acc" = "first_uniprot_acc") )
+
+
+norm_counts_longer_scaled <- norm_counts_longer_filt %>%
+  dplyr::filter( !group %in% c("UniCtrl") ) %>%
+  group_by(uniprot_acc) %>%
+  nest( cols=c(group, value)) %>%
+  mutate(  cols = purrr::map(cols, function(x) { x %>% mutate(  pareto_scaling=(value-mean(value))/sd(value)) } )) %>%
+  unnest(cols) %>%
+  ungroup
+
+
+  
+norm_counts_wider_filt <- norm_counts_longer_scaled %>%
+  pivot_wider(id_cols="uniprot_acc",
+              names_from = "group",
+              values_from = "pareto_scaling") %>%
+  distinct()  %>%
+  column_to_rownames("uniprot_acc") %>%
+  as.matrix
+
+```
+
+
+# https://alinetalhouk.github.io/diceR/articles/overview.html
+
+
+```{r}
+tic()
+
+dice_output <- dice( norm_counts_wider_filt[, setdiff( colnames(norm_counts_wider_filt), c("FA3DOX", "FA3MKO", "MB3MKO") ) ], 
+            nk=6:12,
+            reps = 100, 
+            algorithms = c("pam", "km", "som", "hc", "diana" ),
+            distance = c("euclidean", "canberra", "minkowski", "spearman"), 
+            progress = TRUE,
+            trim=TRUE,
+            plot=TRUE,
+            cons.funs = c("kmodes", "majority"))
+
+saveRDS( dice_output, file=file.path(soms_dir, "dice_output.RDS"))
+toc()
+
+# 440.919 sec elapsed
+```
+
+
+```{r}
+# dice_output <- readRDS( file=file.path(soms_dir, "dice_output.RDS"))
+```
+
+
+```{r}
+som.k <- 7
+som.k.chosen <- dice_output$E[, , "SOM", as.character(som.k), drop = FALSE]
+som.k.chosen.ccomb_class <- consensus_combine(som.k.chosen, element = "class")
+som.k.chosen.cc.matrix <- consensus_matrix(som.k.chosen )
+som.k.chosen.ccomb_matrix <- consensus_combine(som.k.chosen, element = "matrix")
+
+
+som.k.chosen.comb_class_cln <- som.k.chosen.ccomb_class[[as.character(som.k)]]
+
+rownames(som.k.chosen.comb_class_cln) <- rownames( norm_counts_wider_filt[, setdiff( colnames(norm_counts_wider_filt), c("FA3DOX", "FA3MKO", "MB3MKO") ) ] ) 
+
+som.k.chosen.comb_class_cln %>%
+  as.data.frame() %>%
+  rownames_to_column ("uniprot_acc") %>%
+  vroom::vroom_write( 
+    file = file.path(soms_dir, 
+                     paste( "best_method_consensus_clusters_", som.k , ".tab", sep="") ) )
+```
+
+```{r}
+dice_output$E[,,"SOM","7"]
+
+dice_output$Ecomp[,,"SOM"]
+
+dim( dice_output$Ecomp )
+dim( dice_output$clusters  )
+
+dice_output$Eknn[,,"SOM",]
+
+```
+
+
+
+```{r}
+dice_output$clusters
+
+dim(dice_output$clusters)
+
+dice_rownames <- rownames( dice_output$clusters  ) 
+
+dice_outoput_tbl <- dice_output$clusters%>% 
+  as.data.frame() 
+    
+rownames(dice_outoput_tbl) <- dice_rownames
+    
+vroom::vroom_write(dice_outoput_tbl %>%
+                     rownames_to_column("uniprot_acc"), 
+                   file = file.path(soms_dir, 
+                                    "dice_output_consensus_clusters.tab") )
+
+
+max( dice_outoput_tbl$kmodes)
+max( dice_outoput_tbl$majority)
+
+dice_output$indices
+
+```
+
+
+```{r}
+dice_outoput_tbl_best <- vroom::vroom( 
+                   file = file.path(soms_dir, 
+                                    "best_method_consensus_clusters_k7.tab") )
+
+dice_outoput_tbl_best
+
+
+soms_data <- norm_counts_wider_filt[, setdiff( colnames(norm_counts_wider_filt), c("FA3DOX", "FA3MKO", "MB3MKO") ) ] %>%
+  as.data.frame() %>%
+  rownames_to_column("uniprot_acc") %>%
+  pivot_longer( cols=matches("\\d+"),
+                names_to = "cell_line",
+                values_to = "norm_abundance") %>%
+  left_join(dice_outoput_tbl_best, by = "uniprot_acc" )
+
+
+  
+soms_graph <- soms_data %>%
+  dplyr::rename( cluster = "SOM") %>%
+    dplyr::mutate( cluster = factor(cluster)) %>%
+    ggplot( aes( x= cell_line, y=norm_abundance, group= uniprot_acc) ) +
+    geom_line(aes(color = cluster))  +
+    facet_wrap( cluster ~ .) + 
+    theme(legend.position = "none") +
+    xlab("Cell lines") +
+    ylab("Normalized abundance")
+
+
+soms_graph
+
+ggsave(filename =  file.path(soms_dir, 
+                             "consensus_clustering_graph.pdf"), 
+       plot=soms_graph, width =15)
+
+ggsave(filename =  file.path(soms_dir, 
+                             "consensus_clustering_graph.png"), 
+       plot=soms_graph, width =15 )
+
+
+```
+
+

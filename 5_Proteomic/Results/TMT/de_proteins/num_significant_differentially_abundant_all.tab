@@ -1,0 +1,85 @@
+status	counts	comparison	expression	analysis_type
+Not significant	5655	MB3MKO.vs.MB3	groupMB3MKO-groupMB3	No RUV
+Significant and Up	1	MB3MKO.vs.MB3	groupMB3MKO-groupMB3	No RUV
+Significant and Down	0	MB3MKO.vs.MB3	groupMB3MKO-groupMB3	No RUV
+Not significant	5649	FA3MKO.vs.FA3	groupFA3MKO-groupFA3	No RUV
+Significant and Up	3	FA3MKO.vs.FA3	groupFA3MKO-groupFA3	No RUV
+Significant and Down	4	FA3MKO.vs.FA3	groupFA3MKO-groupFA3	No RUV
+Not significant	5651	FA3DOX.vs.FA3MKO	groupFA3DOX-groupFA3MKO	No RUV
+Significant and Up	4	FA3DOX.vs.FA3MKO	groupFA3DOX-groupFA3MKO	No RUV
+Significant and Down	1	FA3DOX.vs.FA3MKO	groupFA3DOX-groupFA3MKO	No RUV
+Not significant	5645	FA3DOX.vs.FA3	groupFA3DOX-groupFA3	No RUV
+Significant and Up	7	FA3DOX.vs.FA3	groupFA3DOX-groupFA3	No RUV
+Significant and Down	4	FA3DOX.vs.FA3	groupFA3DOX-groupFA3	No RUV
+Not significant	5647	FA3.vs.MA1	groupFA3-groupMA1	No RUV
+Significant and Up	3	FA3.vs.MA1	groupFA3-groupMA1	No RUV
+Significant and Down	6	FA3.vs.MA1	groupFA3-groupMA1	No RUV
+Not significant	5656	FA3.vs.MA2	groupFA3-groupMA2	No RUV
+Significant and Up	0	FA3.vs.MA2	groupFA3-groupMA2	No RUV
+Significant and Down	0	FA3.vs.MA2	groupFA3-groupMA2	No RUV
+Not significant	5651	FA3.vs.MA3	groupFA3-groupMA3	No RUV
+Significant and Up	3	FA3.vs.MA3	groupFA3-groupMA3	No RUV
+Significant and Down	2	FA3.vs.MA3	groupFA3-groupMA3	No RUV
+Not significant	5654	FA3.vs.MB1	groupFA3-groupMB1	No RUV
+Significant and Up	2	FA3.vs.MB1	groupFA3-groupMB1	No RUV
+Significant and Down	0	FA3.vs.MB1	groupFA3-groupMB1	No RUV
+Not significant	5655	FA3.vs.MB2	groupFA3-groupMB2	No RUV
+Significant and Up	1	FA3.vs.MB2	groupFA3-groupMB2	No RUV
+Significant and Down	0	FA3.vs.MB2	groupFA3-groupMB2	No RUV
+Not significant	5656	FA3.vs.MB3	groupFA3-groupMB3	No RUV
+Significant and Up	0	FA3.vs.MB3	groupFA3-groupMB3	No RUV
+Significant and Down	0	FA3.vs.MB3	groupFA3-groupMB3	No RUV
+Not significant	5656	FA3.vs.FA1	groupFA3-groupFA1	No RUV
+Significant and Up	0	FA3.vs.FA1	groupFA3-groupFA1	No RUV
+Significant and Down	0	FA3.vs.FA1	groupFA3-groupFA1	No RUV
+Not significant	5649	FA3.vs.FB1	groupFA3-groupFB1	No RUV
+Significant and Up	2	FA3.vs.FB1	groupFA3-groupFB1	No RUV
+Significant and Down	5	FA3.vs.FB1	groupFA3-groupFB1	No RUV
+Not significant	5654	FA3.vs.FB2	groupFA3-groupFB2	No RUV
+Significant and Up	2	FA3.vs.FB2	groupFA3-groupFB2	No RUV
+Significant and Down	0	FA3.vs.FB2	groupFA3-groupFB2	No RUV
+Not significant	5653	FA3.vs.FB3	groupFA3-groupFB3	No RUV
+Significant and Up	2	FA3.vs.FB3	groupFA3-groupFB3	No RUV
+Significant and Down	1	FA3.vs.FB3	groupFA3-groupFB3	No RUV
+Not significant	3449	MB3MKO.vs.MB3	groupMB3MKO-groupMB3	RUV applied
+Significant and Up	1141	MB3MKO.vs.MB3	groupMB3MKO-groupMB3	RUV applied
+Significant and Down	1066	MB3MKO.vs.MB3	groupMB3MKO-groupMB3	RUV applied
+Not significant	3346	FA3MKO.vs.FA3	groupFA3MKO-groupFA3	RUV applied
+Significant and Up	1335	FA3MKO.vs.FA3	groupFA3MKO-groupFA3	RUV applied
+Significant and Down	975	FA3MKO.vs.FA3	groupFA3MKO-groupFA3	RUV applied
+Not significant	4444	FA3DOX.vs.FA3MKO	groupFA3DOX-groupFA3MKO	RUV applied
+Significant and Up	647	FA3DOX.vs.FA3MKO	groupFA3DOX-groupFA3MKO	RUV applied
+Significant and Down	565	FA3DOX.vs.FA3MKO	groupFA3DOX-groupFA3MKO	RUV applied
+Not significant	3213	FA3DOX.vs.FA3	groupFA3DOX-groupFA3	RUV applied
+Significant and Up	1441	FA3DOX.vs.FA3	groupFA3DOX-groupFA3	RUV applied
+Significant and Down	1002	FA3DOX.vs.FA3	groupFA3DOX-groupFA3	RUV applied
+Not significant	3872	FA3.vs.MA1	groupFA3-groupMA1	RUV applied
+Significant and Up	804	FA3.vs.MA1	groupFA3-groupMA1	RUV applied
+Significant and Down	980	FA3.vs.MA1	groupFA3-groupMA1	RUV applied
+Not significant	5536	FA3.vs.MA2	groupFA3-groupMA2	RUV applied
+Significant and Up	61	FA3.vs.MA2	groupFA3-groupMA2	RUV applied
+Significant and Down	59	FA3.vs.MA2	groupFA3-groupMA2	RUV applied
+Not significant	4520	FA3.vs.MA3	groupFA3-groupMA3	RUV applied
+Significant and Up	457	FA3.vs.MA3	groupFA3-groupMA3	RUV applied
+Significant and Down	679	FA3.vs.MA3	groupFA3-groupMA3	RUV applied
+Not significant	3791	FA3.vs.MB1	groupFA3-groupMB1	RUV applied
+Significant and Up	788	FA3.vs.MB1	groupFA3-groupMB1	RUV applied
+Significant and Down	1077	FA3.vs.MB1	groupFA3-groupMB1	RUV applied
+Not significant	4065	FA3.vs.MB2	groupFA3-groupMB2	RUV applied
+Significant and Up	718	FA3.vs.MB2	groupFA3-groupMB2	RUV applied
+Significant and Down	873	FA3.vs.MB2	groupFA3-groupMB2	RUV applied
+Not significant	3680	FA3.vs.MB3	groupFA3-groupMB3	RUV applied
+Significant and Up	879	FA3.vs.MB3	groupFA3-groupMB3	RUV applied
+Significant and Down	1097	FA3.vs.MB3	groupFA3-groupMB3	RUV applied
+Not significant	5252	FA3.vs.FA1	groupFA3-groupFA1	RUV applied
+Significant and Up	179	FA3.vs.FA1	groupFA3-groupFA1	RUV applied
+Significant and Down	225	FA3.vs.FA1	groupFA3-groupFA1	RUV applied
+Not significant	3408	FA3.vs.FB1	groupFA3-groupFB1	RUV applied
+Significant and Up	982	FA3.vs.FB1	groupFA3-groupFB1	RUV applied
+Significant and Down	1266	FA3.vs.FB1	groupFA3-groupFB1	RUV applied
+Not significant	3480	FA3.vs.FB2	groupFA3-groupFB2	RUV applied
+Significant and Up	996	FA3.vs.FB2	groupFA3-groupFB2	RUV applied
+Significant and Down	1180	FA3.vs.FB2	groupFA3-groupFB2	RUV applied
+Not significant	3211	FA3.vs.FB3	groupFA3-groupFB3	RUV applied
+Significant and Up	1073	FA3.vs.FB3	groupFA3-groupFB3	RUV applied
+Significant and Down	1372	FA3.vs.FB3	groupFA3-groupFB3	RUV applied

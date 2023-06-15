@@ -1,0 +1,48 @@
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |    ______     __    __     ______     __       
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |   /\  ___\   /\ "-./  \   /\  == \   /\ \      
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |   \ \ \____  \ \ \-./\ \  \ \  __<   \ \ \     
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |    \ \_____\  \ \_\ \ \_\  \ \_\ \_\  \ \_\    
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |     \/_____/   \/_/  \/_/   \/_/ /_/   \/_/    
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | 
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | ---- Children’s Medical Research Institute ----
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |  Finding cures for childhood genetic diseases  
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | 
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |  ==============================================
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |  ProteomeRiver
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |  Author(s): Ignatius Pang,Pablo Galaviz
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |  cmri-bioinformatics@cmri.org.au
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] |  ==============================================
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | 
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Reading configuration file config_prot.ini
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Argument: Value
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | ----------------------------------------------------
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | fasta_file : ../../Data/20220112_uniprot-Human-proteome_UP000005640_Canonical+isoforms_RT-IS-Procal.fasta
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | raw_counts_file : ../../Data/TMT/2022_BPF_EMB_1_Can+Iso_TMTpro_ProteinGroups_202201013.txt
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | output_counts_file : counts_table_cleaned.tab
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | accession_record_file : cleaned_accession_to_protein_group.tab
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | column_pattern : "Reporter intensity corrected"
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | group_pattern : "SET"
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | razor_unique_peptides_group_thresh : 0
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | unique_peptides_group_thresh : 1
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | fasta_meta_file : aa_seq_tbl.RDS
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | output_dir : ../../Results/TMT/clean_proteins
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | help : FALSE
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | debug : FALSE
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | silent : FALSE
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | no_backup : FALSE
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | config : config_prot.ini
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | tmp_dir : ../../Results/TMT/cache
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | log_file : output.log
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | ----------------------------------------------------
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Reading the counts file.
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Clean counts table header name.
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Prepare regular expressions to select counts data columns.
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Prepare column names associated with peptide counts.
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Reading the FASTA file ../../Results/TMT/cache/aa_seq_tbl.RDS and saving the meta-data file.
+CMRI Bioinformatics INFO [2022-03-03 15:17:00] | Mata-data exists, reading RDS.
+CMRI Bioinformatics INFO [2022-03-03 15:17:01] | Get row ID and get cleaned peptide sequence.
+CMRI Bioinformatics INFO [2022-03-03 15:17:01] | Filtering counts table by number of peptides available, remove decoy proteins and protein contaminants.
+CMRI Bioinformatics INFO [2022-03-03 15:17:01] | Identify best UniProt accession per entry, extract sample number and simplify column header
+CMRI Bioinformatics INFO [2022-03-03 15:17:02] | Save the cleaned counts data into ../../Results/TMT/clean_proteins/counts_table_cleaned.tab
+CMRI Bioinformatics INFO [2022-03-03 15:17:02] | Save the  data into accession_records to ../../Results/TMT/clean_proteins/cleaned_accession_to_protein_group.tab
+CMRI Bioinformatics INFO [2022-03-03 15:17:02] | 2.270000 sec elapsed

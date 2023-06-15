@@ -1,0 +1,82 @@
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |    ______     __    __     ______     __       
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |   /\  ___\   /\ "-./  \   /\  == \   /\ \      
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |   \ \ \____  \ \ \-./\ \  \ \  __<   \ \ \     
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |    \ \_____\  \ \_\ \ \_\  \ \_\ \_\  \ \_\    
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |     \/_____/   \/_/  \/_/   \/_/ /_/   \/_/    
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | 
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | ---- Children’s Medical Research Institute ----
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |  Finding cures for childhood genetic diseases  
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | 
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |  ==============================================
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |  ProteomeRiver
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |  Author(s): Ignatius Pang,Pablo Galaviz
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |  cmri-bioinformatics@cmri.org.au
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] |  ==============================================
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | 
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | Reading configuration file config_prot.ini
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | Argument: Value
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | ----------------------------------------------------
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | max_num_samples_miss_per_group : 0
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | abundance_threshold : 0
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | group_pattern : \d+
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | q_val_thresh : 0.05
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | control_genes_q_val_thresh : 0.05
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | ruv_k : 7
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | num_neg_ctrl : 500
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | ruv_method : ruv3
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | counts_table_file : ../../Results/TMT/clean_proteins/counts_table_no_FA2.tab
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | test_pairs_file : ""
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | contrasts_file : contrast_strings.tab
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | formula_string : "~ 0 + group "
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | design_matrix_file : design_matrix_no_FA2.tab
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | sample_id : Sample_ID
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | group_id : group
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | row_id : uniprot_acc
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | file_prefix : de_proteins
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | output_dir : ../../Results/TMT/de_proteins
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | help : FALSE
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | debug : FALSE
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | silent : FALSE
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | no_backup : FALSE
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | config : config_prot.ini
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | log_file : output.log
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | ----------------------------------------------------
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | treat_lfc_cutoff is undefined, default value set to NA.
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | eBayes_trend is undefined, default value set to FALSE.
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | eBayes_robust is undefined, default value set to FALSE.
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | imputation is undefined, default value set to FALSE.
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | plots_format is undefined, default output set to pdf.
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | Replicate_group_id is NA
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | average_replicates_id is NA
+CMRI Bioinformatics WARNING [2022-08-09 16:59:09] | normalization is NA, defaults to the 'scale' method
+CMRI Bioinformatics INFO [2022-08-09 16:59:09] | Read file with lists of experimental contrasts to test contrast_strings.tab
+CMRI Bioinformatics INFO [2022-08-09 16:59:10] | Read file with counts table ../../Results/TMT/clean_proteins/counts_table_no_FA2.tab
+CMRI Bioinformatics INFO [2022-08-09 16:59:10] | Read design matrix file.
+CMRI Bioinformatics INFO [2022-08-09 16:59:10] | Get table with columns for analysis.
+CMRI Bioinformatics INFO [2022-08-09 16:59:11] | Remove empty proteins without abundance data.
+CMRI Bioinformatics INFO [2022-08-09 16:59:11] | Count the number of missing values before removing proteins with some missing values: 36160
+CMRI Bioinformatics INFO [2022-08-09 16:59:12] | Remove row with any missing values
+CMRI Bioinformatics INFO [2022-08-09 16:59:12] | Assign the indexing row names to the data frame.
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Number of proteins before removing proteins with missing values: 7313
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Number of protein after proteins with missing values were removed: 5656
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Number of proteins removed: 1657
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Count the number of missing values: NA
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Count the number of values in table: 254520
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Mark entries with zero values as NA, take log of values.
+CMRI Bioinformatics INFO [2022-08-09 16:59:13] | Median centering.
+CMRI Bioinformatics INFO [2022-08-09 16:59:14] | Missing value imputation
+CMRI Bioinformatics INFO [2022-08-09 16:59:15] | Run statistical tests without RUV.
+CMRI Bioinformatics INFO [2022-08-09 16:59:15] | Find the list of negative control genes using ANOVA.
+CMRI Bioinformatics INFO [2022-08-09 16:59:22] | Total Num. Genes 5656
+CMRI Bioinformatics INFO [2022-08-09 16:59:22] | Num. Control Genes 500
+CMRI Bioinformatics INFO [2022-08-09 16:59:22] | Draw canonical correlation plot.
+CMRI Bioinformatics INFO [2022-08-09 16:59:22] | Run RUVIII on the input counts table.
+CMRI Bioinformatics INFO [2022-08-09 16:59:23] | Draw the RLE and PCA plots.
+CMRI Bioinformatics INFO [2022-08-09 16:59:26] | Compare the different experimental groups and obtain lists of differentially expressed proteins.
+CMRI Bioinformatics INFO [2022-08-09 16:59:26] | Prepare data for drawing the volcano plots
+CMRI Bioinformatics INFO [2022-08-09 16:59:31] | Print the volcano plots
+CMRI Bioinformatics INFO [2022-08-09 16:59:36] | Count the number of up or down significnat differentially expressed proteins.
+CMRI Bioinformatics INFO [2022-08-09 16:59:36] | Print p-values distribution figure
+CMRI Bioinformatics INFO [2022-08-09 16:59:38] | Create wide format output file
+CMRI Bioinformatics INFO [2022-08-09 16:59:40] | Create long format output file
+CMRI Bioinformatics INFO [2022-08-09 16:59:55] | 45.271000 sec elapsed
