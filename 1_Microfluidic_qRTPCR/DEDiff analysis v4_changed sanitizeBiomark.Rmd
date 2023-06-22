@@ -417,9 +417,11 @@ colnames(DED_2dCT_Pierre)[1] <- "Sample"
 # Figure 1
 Hepatoblast diff
 ```{r cars}
-
-
-Table <- DED_dCT_Pierre %>% filter(plate == 4) %>% filter(!(V3 %in% c("18hDox", "96hDox"))) %>% filter(!(V3 %in% c("A")))
+Table <- DED_dCT_Pierre %>%
+  filter(plate == 4) %>%
+  filter(!(V3 %in% c("18hDox", "96hDox"))) %>%
+  filter(!(V3 %in% c("A"))) %>%
+  filter(!(CellLine == "MB3"))
 Table[is.na(Table)] <- -15
 
 #PCA
@@ -439,7 +441,7 @@ p21 <- ggplot(PCA_data, aes(PC1,PC2, color= Condition, shape = CellLine)) +
   ylab(paste("PC2", "(",round(PCA_TOT$eig[2,2], 2), "% )"))+
   #geom_text_repel()+
   theme_bw()
-ggsave("plots/Hepatoblast.pdf", p21, width = 10, height = 7)
+ggsave("plots/Hepatoblast.pdf", p21, width = 7, height = 5)
 ```
 
 
@@ -447,7 +449,11 @@ HIO diff
 ```{r cars}
 
 
-TableHIO <- DED_dCT_Pierre %>% filter(V2 == "IO") %>% filter(!(Sample == "MB2 IO pool p3 in house")) %>% filter(!(CellLine == "FA2"))
+TableHIO <- DED_dCT_Pierre %>%
+  filter(V2 == "IO") %>%
+  filter(!(Sample == "MB2 IO pool p3 in house")) %>%
+  filter(!(CellLine == "FA2")) %>%
+  filter(!(CellLine == "MB3"))
 TableHIO[is.na(TableHIO)] <- -15
 
 #PCA
