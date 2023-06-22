@@ -1,0 +1,67 @@
+---
+title: "Remove sample FA2 from the analysis"
+output: html_notebook
+---
+
+
+
+## Libraries management 
+```{r}
+
+#Test if BioManager is installed
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install()
+}
+
+if( !require(pacman)) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(tidyverse)
+p_load(tidyselect)
+p_load(magrittr)
+p_load(ProteomeRiver)
+
+
+
+```
+
+
+
+```{r}
+base_dir <-  here::here() 
+data_dir <- file.path( base_dir, "Data")
+results_dir <- file.path(base_dir, "Results")
+source_dir <- file.path(base_dir, "Source")
+```
+
+```{r}
+design_mat <- vroom::vroom( file.path(source_dir, "TMT", "design_matrix.tab" )  ) 
+counts_table <- vroom::vroom( file.path(results_dir, "TMT", "clean_proteins", "counts_table_cleaned.tab"))
+
+```
+
+```{r}
+
+design_mat_filt <- design_mat %>%
+  dplyr::filter( group != "FA2")
+
+list_of_columns <- design_mat_filt  %>%
+        pull(Sample_ID)
+
+
+counts_table_filt <- counts_table[, c("uniprot_acc", list_of_columns)]
+
+```
+
+
+```{r}
+vroom::vroom_write( design_mat_filt, file.path(source_dir, "TMT", "design_matrix_no_FA2.tab" )  ) 
+vroom::vroom_write( counts_table_filt, file.path(results_dir, "TMT", "clean_proteins", "counts_table_no_FA2.tab"))
+
+```
+
+
+

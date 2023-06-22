@@ -1,0 +1,15 @@
+contrasts
+MB3MKO.vs.MB3=groupMB3MKO-groupMB3
+FA3MKO.vs.FA3=groupFA3MKO-groupFA3
+FA3DOX.vs.FA3MKO=groupFA3DOX-groupFA3MKO
+FA3DOX.vs.FA3=groupFA3DOX-groupFA3
+FA3.vs.MA1=groupFA3-groupMA1
+FA3.vs.MA2=groupFA3-groupMA2
+FA3.vs.MA3=groupFA3-groupMA3
+FA3.vs.MB1=groupFA3-groupMB1
+FA3.vs.MB2=groupFA3-groupMB2
+FA3.vs.MB3=groupFA3-groupMB3
+FA3.vs.FA1=groupFA3-groupFA1
+FA3.vs.FB1=groupFA3-groupFB1
+FA3.vs.FB2=groupFA3-groupFB2
+FA3.vs.FB3=groupFA3-groupFB3

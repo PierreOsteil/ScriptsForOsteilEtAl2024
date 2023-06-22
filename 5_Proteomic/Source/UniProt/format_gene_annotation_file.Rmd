@@ -1,0 +1,183 @@
+---
+title: "Convert GO terms annotation parsed with Python file into GAF format"
+output: html_notebook
+---
+
+# Convert the GO terms annotation parsed with Python file into GAF format 
+
+
+```{r}
+
+
+#Test if BioManager is installed
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install()
+}
+
+# load pacman package manager
+if (!require(pacman)) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(tidyverse)
+p_load(plotly)
+p_load(vroom)
+p_load(writexl)
+p_load(ggplot2)
+p_load(GO.db)
+p_load(clusterProfiler)
+
+p_load(magrittr)
+p_load(xml2)
+p_load(rvest)
+p_load(ProteomeRiver)
+
+```
+
+```{r}
+base_dir <-  here::here() 
+data_dir <- file.path( base_dir, "Data")
+results_dir <- file.path(base_dir, "Results")
+source_dir <- file.path(base_dir, "Source")
+
+
+```
+
+```{r}
+go_annot <- vroom::vroom( file.path( results_dir, "UniProt", "go_terms_table_python.tab")  ) 
+
+# UniProt entries tab separated format to obtain gene symbols
+uniprot_tbl <- vroom::vroom( file.path( data_dir, "UniProt", "data.tab"))  %>%
+  dplyr::mutate(gene_symbol = str_split(`Gene names`, " ") %>% purrr::map_chr( 1)) %>%
+  dplyr::relocate("gene_symbol", .before="Entry name")
+```
+# http://geneontology.org/docs/go-annotation-file-gaf-format-2.2/
+```{r}
+go_annot
+```
+
+# GAF file required headers
+```{r}
+
+
+```
+
+## Data fields required by the GAF format 
+
+Column	Content	Required?	Cardinality	Example	 
+1	DB	required	1	UniProtKB	 
+2	DB Object ID	required	1	P12345	 
+3	DB Object Symbol	required	1	PHO3	 
+4	Qualifier	required	1 or 2	NOT|involved_in	 
+5	GO ID	required	1	GO:0003993	 
+6	DB:Reference (|DB:Reference)	required	1 or greater	PMID:2676709	 
+7	Evidence Code	required	1	IMP	 
+8	With (or) From	optional	0 or greater	GO:0000346	 
+9	Aspect	required	1	F	 
+10	DB Object Name	optional	0 or 1	Toll-like receptor 4	 
+11	DB Object Synonym (|Synonym)	optional	0 or greater	hToll	Tollbooth
+12	DB Object Type	required	1	protein	 
+13	Taxon(|taxon)	required	1 or 2	taxon:9606	 
+14	Date	required	1	20090118	 
+15	Assigned By	required	1	SGD	 
+16	Annotation Extension	optional	0 or greater	part_of(CL:0000576)	 
+17	Gene Product Form ID	optional	0 or 1	UniProtKB:P12345-2	 
+
+
+```{r}
+gaf_tbl <- go_annot %>%
+  left_join( uniprot_tbl %>%
+               dplyr::select(Entry, gene_symbol), by =c("uniprot_acc" = "Entry")) %>%
+  dplyr::mutate( DB = "UniProtKB") %>%
+  dplyr::relocate( DB, .before="uniprot_acc") %>% 
+  dplyr::rename( 	DB_Object_ID = "uniprot_acc" ) %>%
+  dplyr::relocate( gene_symbol, .after="DB_Object_ID") %>% 
+  dplyr::rename( 	DB_Object_Symbol = "gene_symbol" ) %>%
+  dplyr::mutate(  Qualifier = "involved_in" ) %>%
+  dplyr::relocate( Qualifier, .after="DB_Object_Symbol") %>%
+  dplyr::rename( GO_ID = "go_id")  %>%
+  dplyr::mutate( DB_Reference = paste0("UniProtKB:", DB_Object_ID) ) %>%
+  dplyr::relocate(DB_Reference, .after="GO_ID" ) %>%
+  dplyr::rename( Evidence_Code = "go_evidence") %>%
+  dplyr::relocate( Evidence_Code, .after="DB_Reference") %>%
+  dplyr::mutate( With_or_From = "") %>%
+  dplyr::relocate( With_or_From, .after="Evidence_Code") %>%
+  dplyr::rename( Aspect = "go_type")  %>%
+  dplyr::rename( DB_Object_Name = "go_term") %>%
+  dplyr::mutate( DB_Object_Synonym = "" ) %>%
+  dplyr::relocate( DB_Object_Synonym, .after="DB_Object_Name") %>%
+  dplyr::mutate( DB_Object_Type = "protein") %>%
+  dplyr::relocate( DB_Object_Type, .after="DB_Object_Synonym") %>%
+  dplyr::mutate( Taxon = "taxon:9606") %>%
+  dplyr::relocate( Taxon, .after="DB_Object_Type") %>%
+  dplyr::mutate( Date  =  format(Sys.Date(), "%Y%m%d") ) %>%
+  dplyr::relocate( Date, .after="Taxon") %>%
+  dplyr::rename(Assigned_By = "go_project" )  %>%
+  dplyr::relocate( Assigned_By, .after="Date") %>%
+  dplyr::mutate( Annotation_Extension = "") %>%
+  dplyr::mutate( Gene_Product_Form_ID = DB_Reference)
+
+gaf_tbl
+
+
+colnames( gaf_tbl)
+```
+## Create GAF file 
+```{r}
+sink( file.path(results_dir, "UniProt", "go_annotation_header.gaf" ))
+cat("!gaf-version: 2.2\n")
+cat("generated-by: UniProt\n")
+cat("date-generated: 2022-04-22\n")
+sink()
+
+vroom::vroom_write(  gaf_tbl, col_names = FALSE, path=file.path(results_dir, "UniProt", "go_annotation_body.gaf") ) 
+
+system(  paste( "cat",
+  file.path(results_dir, "UniProt", "go_annotation_header.gaf" ),
+  file.path(results_dir, "UniProt", "go_annotation_body.gaf"),
+  ">",
+  file.path(results_dir, "UniProt", "go_annotation.gaf") ) ) 
+
+```
+
+
+## 
+```{r}
+
+go_slim_tbl <-  vroom::vroom(file.path( results_dir, "UniProt", "go_annotation.slim.gaf"),   comment = "!",
+                             col_names = c("DB", "DB_Object_ID", "DB_Object_Symbol", "Qualifier", "GO_ID", 
+                                           "DB_Reference", "Evidence_Code", "With_or_From",  "Aspect", 
+                                           "DB_Object_Name", "DB_Object_Synonym", "DB_Object_Type", "Taxon", 
+                                           "Date", "Assigned_By", "Annotation_Extension", "Gene_Product_Form_ID" )) 
+
+
+permitted_go_terms <- go_slim_tbl %>% 
+  group_by( GO_ID) %>%
+  dplyr::summarize( counts =n()) %>%
+  ungroup() %>%
+  arrange(desc(counts)) %>%
+  dplyr::filter( counts <= 2000 & counts >= 10 )  %>%
+  dplyr::mutate( go_term = purrr::map_chr(  GO_ID, ~Term(.)))
+
+# Number of proteins annotated (13,460)
+go_slim_tbl %>%
+  dplyr::inner_join(permitted_go_terms, by ="GO_ID") %>%
+  distinct(DB_Object_ID) %>%
+  nrow()
+
+
+go_slim_tbl_filtered <- go_slim_tbl %>%
+  dplyr::inner_join(permitted_go_terms, by ="GO_ID") %>%
+  dplyr::select(DB_Object_ID, GO_ID, Aspect, DB_Object_Name, Evidence_Code )
+
+Term("GO:0042060")
+
+
+vroom::vroom_write( go_slim_tbl_filtered, path=file.path(results_dir, "GOSubset", "go_slim_tbl_filtered.tab") )
+
+```
+
+
+

@@ -1,0 +1,46 @@
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |    ______     __    __     ______     __       
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |   /\  ___\   /\ "-./  \   /\  == \   /\ \      
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |   \ \ \____  \ \ \-./\ \  \ \  __<   \ \ \     
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |    \ \_____\  \ \_\ \ \_\  \ \_\ \_\  \ \_\    
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |     \/_____/   \/_/  \/_/   \/_/ /_/   \/_/    
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | 
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | ---- Children’s Medical Research Institute ----
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |  Finding cures for childhood genetic diseases  
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | 
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |  ==============================================
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |  ProteomeRiver
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |  Author(s): Ignatius Pang,Pablo Galaviz
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |  cmri-bioinformatics@cmri.org.au
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] |  ==============================================
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | 
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | Reading configuration file /home/ignatius/PostDoc/2022/Embryology_BMP_14/Source/TMT/config_prot.ini
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | Argument: Value
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | ----------------------------------------------------
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | query_proteins_file : ../../Results/TMT/SOMS_Analysis/dice_output_consensus_clusters.tab
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | qp_protein_id_column : uniprot_acc
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | qp_protein_sets_column : kmodes
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | background_file : ../../Results/TMT/SOMS_Analysis/all_proteins_background_list.tab
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | output_dir : ../../Results/TMT/SOMS_Analysis
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | annotation_file : ../../Results/UniProt/go_terms_table_python.tab
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | dictionary_file : ../../Results/UniProt/go_terms_table_python.tab
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | annotation_column : go_term
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | annotation_name : go_enrichment
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | min_gene_set_size : 6
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | max_gene_set_size : 350
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | annotation_id : go_id
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | aspect_column : go_type
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | annotation_type : go_enrichment
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | uniprot_to_gene_symbol_file : ../../Data/UniProt/data.tab
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | protein_id_lookup_column : Entry
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | gene_symbol_column : Gene names
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | help : FALSE
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | debug : FALSE
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | silent : FALSE
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | no_backup : FALSE
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | config : /home/ignatius/PostDoc/2022/Embryology_BMP_14/Source/TMT/config_prot.ini
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | tmp_dir : cache
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | log_file : output.log
+CMRI Bioinformatics INFO [2022-08-25 12:04:46] | ----------------------------------------------------
+CMRI Bioinformatics WARNING [2022-08-25 12:04:46] | p_val_thresh is undefined, default value set to 0.05.
+CMRI Bioinformatics WARNING [2022-08-25 12:04:46] | protein_id is undefined, default value set to uniprot_acc.
+CMRI Bioinformatics ERROR [2022-08-25 12:04:46] | Missing required file: ../../Results/TMT/SOMS_Analysis/dice_output_consensus_clusters.tab

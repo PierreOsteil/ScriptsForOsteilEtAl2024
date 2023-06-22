@@ -1,0 +1,124 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+
+#Test if BioManager is installed
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+  BiocManager::install()
+}
+
+# load pacman package manager
+if (!require(pacman)) {
+  install.packages("pacman")
+  library(pacman)
+}
+
+p_load(tidyverse)
+p_load(plotly)
+p_load(vroom)
+p_load(writexl)
+p_load(ggplot2)
+
+p_load(magrittr)
+p_load(xml2)
+p_load(rvest)
+p_load(ProteomeRiver)
+
+```
+
+
+
+```{r}
+base_dir <-  here::here() 
+data_dir <- file.path( base_dir, "Data")
+results_dir <- file.path(base_dir, "Results")
+source_dir <- file.path(base_dir, "Source")
+
+xml_file <- file.path( data_dir, "UniProt", "data.xml") # three_entries_test.xml
+
+```
+
+
+```{r}
+
+
+parseOneGoTerm <-  function(one_go_term) {
+  
+  has_go_id <- one_go_term %>% xml_find_all(".//@id") 
+  
+  if( length( has_go_id) == 0 ) {
+    return( data.frame( go_id = NA, 
+                        go_type = NA,
+                        go_term = NA, 
+                        go_evidence = NA,
+                        go_project = NA))
+  }
+  
+  go_id <- has_go_id  %>% xml_text()
+  go_term_combined <- one_go_term %>% xml_find_all(".//d1:property[@type='term']") %>% xml_find_all(".//@value") %>% xml_text()
+  go_type <-   str_split(go_term_combined, ":")[[1]]  %>% .[1]
+  go_term <-   str_split(go_term_combined, ":")[[1]]  %>% .[2]
+  go_evidence <- one_go_term %>% xml_find_all(".//d1:property[@type='evidence']") %>% xml_find_all(".//@value") %>% xml_text()
+  go_project <- one_go_term %>% xml_find_all(".//d1:property[@type='project']") %>% xml_find_all(".//@value") %>% xml_text()
+  
+  data.frame( go_id = go_id, 
+              go_type = go_type,
+              go_term = go_term, 
+              go_evidence = go_evidence,
+              go_project = go_project)
+  
+} 
+
+getGOTermFromOneUniprotEntry <- function(one_entry) {
+  
+  uniprot_acc <- one_entry %>% xml_find_all( ".//d1:accession")  %>% xml_text() %>% .[1]
+  list_of_go_terms <- one_entry %>% xml_find_all( ".//d1:dbReference[@type='GO']") 
+  
+  if( length( list_of_go_terms) == 0 ) {
+    return(  data.frame( uniprot_acc = NA, 
+                         go_id = NA, 
+                         go_type = NA,
+                         go_term = NA, 
+                         go_evidence = NA,
+                         go_project = NA))
+    
+  }
+  
+  return_table <- purrr::map(  list_of_go_terms, parseOneGoTerm) %>% 
+    bind_rows() %>% 
+    dplyr::mutate(uniprot_acc = uniprot_acc) %>% 
+    dplyr::relocate(uniprot_acc, .before="go_id")
+  
+  return_table
+}
+```
+
+
+
+```{r}
+
+db_parse <- read_xml(   xml_file)
+#xml_ns_strip(db_parse)
+
+
+entries <- xml_find_all(db_parse, ".//d1:entry")
+
+rm(db_parse)
+gc()
+
+go_terms_table <- purrr::map(entries, 
+           getGOTermFromOneUniprotEntry)  %>% bind_rows()
+
+createDirIfNotExists(file.path( results_dir, "UniProt"))
+
+vroom::vroom_write( go_terms_table, file.path( results_dir, "UniProt", "go_terms_table.tab") ) 
+
+```
+
+

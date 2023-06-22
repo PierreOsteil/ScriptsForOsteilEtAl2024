@@ -1,0 +1,30 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+num_sig_de_molecules <- vroom::vroom ( "/home/ignatius/PostDoc/2022/Embryology_BMP_14/Results/TMT/publication_graphs/NumSigDeMolecules/num_sig_de_molecules.tab" )
+
+
+
+formula_string <- "analysis_type ~ comparison"
+num_sig_de_genes_barplot <- num_sig_de_molecules %>%
+  dplyr::filter(status != "Not significant") %>%
+  ggplot(aes(x = status, y = counts)) +
+  geom_bar(stat = "identity") +
+  geom_text(stat = 'identity', aes(label = counts), vjust = -0.5) +
+  theme(axis.text.x = element_text(angle = 90))  +
+  facet_grid(as.formula(formula_string))
+
+num_sig_de_genes_barplot
+
+
+
+ggsave(filename = file.path( "/home/ignatius/PostDoc/2022/Embryology_BMP_14/Results/TMT/publication_graphs", "NumSigDeMolecules", "num_sig_de_molecules.png" ),
+       plot = num_sig_de_genes_barplot,
+       height = 10,
+       width = 14)
+
+```
+
