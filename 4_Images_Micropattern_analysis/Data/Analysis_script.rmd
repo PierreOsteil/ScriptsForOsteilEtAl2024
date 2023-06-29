@@ -1,0 +1,75 @@
+---
+title: "Micorpattern Images analysis"
+output: html_document
+date: "2023-01-11"
+---
+```{r}
+.vsc.attach() #attach the environment to VSCode
+```
+```{r}
+library(devtools)
+install_github("lldelisle/usefulLDfunctions")
+library(usefulLDfunctions)
+
+safelyLoadAPackageInCRANorBioconductor("ggplot2")
+safelyLoadAPackageInCRANorBioconductor("ggrepel")
+safelyLoadAPackageInCRANorBioconductor("dplyr")
+safelyLoadAPackageInCRANorBioconductor("ggpubr")
+safelyLoadAPackageInCRANorBioconductor("ggrepel")
+safelyLoadAPackageInCRANorBioconductor("Rtsne")
+safelyLoadAPackageInCRANorBioconductor("plotly")
+safelyLoadAPackageInCRANorBioconductor("limma")
+safelyLoadAPackageInCRANorBioconductor("HTqPCR")
+safelyLoadAPackageInCRANorBioconductor("readr")
+safelyLoadAPackageInCRANorBioconductor("tidyverse")
+safelyLoadAPackageInCRANorBioconductor("FactoMineR")
+safelyLoadAPackageInCRANorBioconductor("repr")
+safelyLoadAPackageInCRANorBioconductor("stringr")
+safelyLoadAPackageInCRANorBioconductor("devtools")
+safelyLoadAPackageInCRANorBioconductor("factoextra")
+#heatmap
+safelyLoadAPackageInCRANorBioconductor("heatmaply")
+safelyLoadAPackageInCRANorBioconductor("pheatmap")
+safelyLoadAPackageInCRANorBioconductor("RColorBrewer")
+
+```
+
+# get the data
+```{r}
+file_list <- list.files(path = "L:/Pierre/Projects/4-All_git/ScriptsForOsteilEtEl2023/4_Images_Micropattern_analysis/Data/Trial10/", pattern = "*.csv", full.names = TRUE)
+file_list_2 <- list.files(path = "L:/Pierre/Projects/4-All_git/ScriptsForOsteilEtEl2023/4_Images_Micropattern_analysis/Data/Trial20/", pattern = "*.csv", full.names = TRUE)
+
+combined_data_trial10 <- NULL
+for (file in file_list) {
+  data <- read.csv(file, sep = ",", header = TRUE)
+  combined_data_trial10 <- rbind(combined_data_trial10, data)
+}
+combined_data_trial10$trial <- rep("Trial10", length(nrow(combined_data_trial10)))
+
+
+combined_data_trial20 <- NULL
+for (file in file_list) {
+    data <- read.csv(file, sep = ",", header = TRUE)
+    combined_data_trial20 <- rbind(combined_data_trial20, data)
+}
+combined_data_trial20$trial <- rep("Trial20", length(nrow(combined_data_trial20)))
+
+df_microp <- rbind.data.frame(combined_data_trial10, combined_data_trial20)
+dim(df_microp)
+
+rm(combined_data_trial10, combined_data_trial20, data, file_list, file_list_2, file) # clean environment
+
+```
+
+# add some metadata
+
+```{r}
+df_microp$temp <- strsplit(df_microp$Label, "c:|z:| ")
+df_microp$channel <- df_microp$temp[2]
+head(df_microp$channel)
+
+
+df_microp <- df_microp |> mutate(channel = sapply(str_split(string, "c:|z:| "), `[`, 2))
+
+
+```
