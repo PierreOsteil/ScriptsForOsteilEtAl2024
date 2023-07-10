@@ -98,7 +98,7 @@ FluoPlot <- ggplot(toplot, aes(x = X, y = Y)) +
   theme_minimal() +
   coord_fixed()
 FluoPlot
-ggsave("4_Images_Micropattern_analysis/Plots/Trial20_SOX17_plot.pdf", FluoPlot, width = 12, height = 10)  
+ggsave("4_Images_Micropattern_analysis/Plots/Trial20_FOXA2_plot.pdf", FluoPlot, width = 12, height = 10)  
 ```
 
 # Double positive Table
@@ -116,26 +116,33 @@ rm(df_microp_green, df_microp_red, df_microp_dapi, df_microp_meta)
 
 # Double positive Plots
 ```{r}
-tresh_FOXA2 <- 10000
-tresh_SOX17 <- 10000
+tresh_FOXA2 <- 20000 #higher then 3rd Quantile
+tresh_SOX17 <- 30000
 
 df_microp_dblepos <- df_microp_dblepos |> mutate(FOXA2single = FOXA2 >= tresh_FOXA2)
 df_microp_dblepos <- df_microp_dblepos |> mutate(SOX17single = SOX17 >= tresh_SOX17)
 df_microp_dblepos <- df_microp_dblepos |> mutate(DBLE = c(SOX17single + FOXA2single) == 2)
 
+df_microp_dblepos$CellLineGen <- paste0(df_microp_dblepos$CellLine, "_",df_microp_dblepos$Genotype)
 
-toplot <- df_microp_dblepos |> filter(DBLE == TRUE) |> filter(!(CellLine  == "MB2")) |> filter(Trial =="Trial20") # nolint
+#add indices for the top 50000 cells for each cell line
+unique(df_microp_dblepos$CellLineGen)
+random_1 <- df_microp_dblepos |>
+  filter(CellLineGen == "FA3_DO0") |>
+  sample_n(100000)
+random_2 <- df_microp_dblepos |>
+  filter(CellLineGen == "FA3_DO1") |>
+  sample_n(100000)
+random_3 <- df_microp_dblepos |>
+  filter(CellLineGen == "FA3_DO2") |>
+  sample_n(100000)
 
-# DblePlot <- ggplot(toplot, aes(x = X, y = Y)) +
-#     geom_hex(stat = "binhex", binwidth = c(50, 50), aes(fill = ..density..)) +
-#     scale_fill_viridis_c(option = "turbo", trans = "log10") +
-#     theme_minimal() +
-#     facet_wrap(CellLine ~ Genotype) +
-#     coord_fixed()
-# DblePlot
+DOX_samples <- rbind.data.frame(random_1, random_2, random_3)
 
+toplot <- DOX_samples |> filter(DBLE == TRUE)
+#toplot <- df_microp_dblepos |> filter(DBLE == TRUE) |> filter(!(CellLine  == "MB2")) |> filter(Trial =="Trial20") # nolint
 
-DblePlot2 <- ggplot(toplot, aes(x = X, y = Y)) +
+DblePlot <- ggplot(toplot, aes(x = X, y = Y)) +
 geom_hex(binwidth = c(50, 50), aes(fill = ..y..)) +
     facet_wrap(CellLine ~ Genotype) +
     scale_fill_viridis_c(option = "turbo", trans = "log10") +
@@ -147,7 +154,9 @@ geom_hex(binwidth = c(50, 50), aes(fill = ..y..)) +
     ) +
   theme_minimal() +
     coord_fixed()
-DblePlot2
+DblePlot
+#ggsave("4_Images_Micropattern_analysis/Plots/Trial20_DblePos_plot.pdf", DblePlot, width = 12, height = 10)  
+
 ```
 
 
