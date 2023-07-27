@@ -13,8 +13,12 @@ Written by Nader Aryamanesh
 The scripts can be found in the following folder: 3_scRNAseq_DEDiff\
 Written by Nader Aryamanesh
 
-## Image analysis on micropattern differentiation
-The scripts can be found in the following folder: 4_Images_Micropattern_analysis\
+## Image analysis
+### DE Differentiation 
+The scripts can be found in the following folder: 4.1_Images_DE_differentiation_analysis\
+Written by Pierre Osteil
+### micropattern differentiation
+The scripts can be found in the following folder: 4.2_Images_Micropattern_analysis\
 Written by Pierre Osteil
 
 

@@ -1,0 +1,38 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library("ggplot2")
+library("ggpubr")
+library("tidyr")
+```
+
+
+
+
+```{r}
+
+setwd("C:/Users/Osteil/Desktop/To Read & Write/hiPSC/Imaging/Mixl1 staining")
+
+Mixl1_dat <- read.csv2("Mixl1 staining DOX - raw MIXL1.csv", sep = ",")
+head(Mixl1_dat)
+
+Mixl1_dat_long <- pivot_longer(Mixl1_dat, cols=1:ncol(Mixl1_dat), names_to = "Cond", values_to = "MIXL1")
+
+Mixl1_dat_long$MIXL1 <- as.numeric(Mixl1_dat_long$MIXL1)
+
+Mixl1_dat_long <- Mixl1_dat_long[ -c(which(Mixl1_dat_long == "Dox2bis")), ]
+
+
+head(Mixl1_dat_long)
+
+
+```
+
+```{r}
+ggboxplot(Mixl1_dat_long, x = "Cond", y = "MIXL1", yscale = "log10")
+ggsave("MIXL1_staining.pdf", width = 12, height = 7)
+```
+

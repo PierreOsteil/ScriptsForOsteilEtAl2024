@@ -1,0 +1,81 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library("ggplot2")
+library("ggpubr")
+library("tidyverse")
+```
+
+
+
+
+```{r}
+
+setwd("C:/Users/Osteil/Desktop/To Read & Write/hiPSC/Imaging/Jiayi/DE day 4 trial 1 original image")
+
+FoxSox_dat <- read.csv2("Micropattern cell staining analysis.csv", sep = ",")
+head(FoxSox_dat)
+
+FoxSox_dat_clean <- FoxSox_dat[, c(1,2,9,11,13,14)]
+FoxSox_dat_clean$Sox17.Intensity <- as.numeric(FoxSox_dat_clean$Sox17.Intensity)
+FoxSox_dat_clean$FoxA2.Intensity <- as.numeric(FoxSox_dat_clean$FoxA2.Intensity)
+FoxSox_dat_clean$Sox17.normolized.to.DAPI <- as.numeric(FoxSox_dat_clean$Sox17.normolized.to.DAPI)
+FoxSox_dat_clean$FoxA2.normolized.to.DAPI <- as.numeric(FoxSox_dat_clean$FoxA2.normolized.to.DAPI)
+
+head(FoxSox_dat_clean)
+
+FoxSox_dat_clean$Cond1 <- sapply(strsplit(FoxSox_dat_clean$Image.Name, " "), "[", 1)
+FoxSox_dat_clean$Cond2 <- sapply(strsplit(FoxSox_dat_clean$Image.Name, " "), "[", 2)
+unique(FoxSox_dat_clean$Cond1)
+unique(FoxSox_dat_clean$Cond2)
+FoxSox_dat_clean$Cond <- paste0(FoxSox_dat_clean$Cond1, "_", FoxSox_dat_clean$Cond2)
+unique(FoxSox_dat_clean$Cond)
+
+
+FoxSox_dat_clean <- FoxSox_dat_clean[ -c(which(FoxSox_dat_clean$Cond == "FA3_P52")), ]
+FoxSox_dat_clean <- FoxSox_dat_clean[ -c(which(FoxSox_dat_clean$Cond == "MB3_P60")), ]
+FoxSox_dat_clean <- FoxSox_dat_clean[ -c(which(FoxSox_dat_clean$Cond == "Dox2_Veh")), ]
+
+
+```
+
+```{r}
+ggboxplot(FoxSox_dat_clean, x = "Cond", y = "Sox17.normolized.to.DAPI", yscale = "log10")
+ggsave("Sox17normolizedtoDAPI.pdf")
+ggboxplot(FoxSox_dat_clean, x = "Cond", y = "FoxA2.normolized.to.DAPI", yscale = "log10")
+ggsave("FoxA2normolizedtoDAPI.pdf")
+ggviolin(FoxSox_dat_clean, x = "Cond", y = "Sox17.Intensity", yscale = "log10")
+ggviolin(FoxSox_dat_clean, x = "Cond", y = "FoxA2.Intensity", yscale = "log10")
+
+```
+
+
+```{r}
+#biplot
+Biplot <- ggscatterhist(FoxSox_dat_clean, x="FoxA2.normolized.to.DAPI", 
+                    y="Sox17.normolized.to.DAPI", 
+                    color = "Cond", ellipse = T, ellipse.level = 0.5,
+                    margin.plot = "boxplot", margin.params = list(color = "Cond", ylim = c(0.005, 0.5)),
+                    alpha = 0.05, ylim = c(0,3.5), xlim = c(0,2.5))
+                    
+  
+#ggsave("FoxSox_biplot.PDF", Biplot , width = 10, height = 15)
+
+
+Biplot_per_line <- ggscatter(FoxSox_dat_clean, x="FoxA2.normolized.to.DAPI", 
+                        y="Sox17.normolized.to.DAPI", 
+                        color = "Cond", 
+                        #ylim = c(0.050, 0.5),
+                        margin.plot = "boxplot", facet.by = "Cond", 
+                        alpha = 0.10)+
+  yscale("log10")+
+  xscale("log10")
+
+Biplot_per_line
+#ggsave("FoxSox_biplot_perline.PDF", Biplot_per_line , width = 10, height = 15)
+
+          
+```
