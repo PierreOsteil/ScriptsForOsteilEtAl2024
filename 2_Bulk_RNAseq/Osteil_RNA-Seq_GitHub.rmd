@@ -1,1 +1,761 @@
-Deleted file
+---
+title: "Pierre Osteil data for RNA-Seq"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    css: ~/.style.css
+    toc: yes
+    toc_float: true
+    toc_collapsed: false
+    toc_depth: 4
+    theme: united
+    number_sections: true
+    fig_caption: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r 1_setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+```{r 3_libraries, echo=FALSE, message=FALSE, warning=FALSE}
+library(pacman)
+p_load(biomaRt)
+p_load(ngsReports)
+p_load(tidyverse)
+p_load(limma)
+p_load(edgeR)
+p_load(pander)
+p_load(knitr)
+p_load(ggplot2)
+p_load(ggrepel)
+p_load(ReportingTools)
+p_load(Glimma)
+p_load(here)
+p_load(UpSetR)
+p_load(KEGGREST)
+p_load(org.Mm.eg.db)
+p_load(org.Hs.eg.db)
+p_load(GO.db)
+p_load(gage)
+p_load(ggsci)
+p_load(clusterProfiler)
+p_load(pathview)
+p_load(RColorBrewer)
+p_load(RUVSeq)
+p_load(EDASeq)
+p_load(dittoSeq)
+p_load(scater)
+
+
+baseDir <- here("")
+set <- "20220908_Pierre_GRCh38_geneID_noRUV_upDownGo"
+dir.create(paste0("output_", set))
+outdir <- here(paste0("output_", set,"/"))
+annotation <- "geneID" # "geneName" or "geneID"
+genome <- "GRCh38"
+species <- "human" # "human" or "mouse"
+panderOptions("table.split.table", Inf)
+contrast_columns <- c("CellLine", "Sex")
+designColumn <- "CellLine"
+LFC_cutoff <- 1
+sampleFile <- "SampleTable_Pierre_RNASeq.xlsx"
+cal_GO = TRUE
+cal_KEGG = TRUE
+cal_ditto = TRUE
+```
+
+# Analysis Details
+
+- Data processing (trimming using AdapterRemoval, Alignment using STAR, quantification using featureCounts/R)
+- Quality control assessment using FastQC
+- Data filtering for low counts and transcriptional profiling (Table of expression levels for all samples)
+- Differential gene expression across the groups
+- Functional Annotation: Gene Ontology and KEGG Pathway enrichment analysis
+
+## Data processing
+
+Initial raw read processing was performed using an in-house pipeStrain developed at CMRI. Raw paired-end FASTQ reads were aligned to the `r genome` version of the `r species` genome using the transcriptome algorthim `STAR` (https://github.com/alexdobin/STAR). After alignment, mapped sequence reads were summarised to the `r genome` gene intervals using the tool `featureCounts`, available through the package `RSubread` (https://bioconductor.org/packages/release/bioc/html/Rsubread.html). 
+
+## Import gene counts (dedup)
+
+Import the counts from `featureCounts` into a matrix for analysis.
+
+```{r 7_Import_gene_counts_dedup, message=FALSE}
+# Read in table of counts
+counts <- readr::read_delim(paste0(baseDir, "F6_counts/dedup_countTable_", annotation, ".tsv.gz"),
+                   delim = "\t", comment = "#")
+colnames(counts) <- gsub(".*/F4_markDupPicard/", "", colnames(counts))
+colnames(counts) <- gsub("_L.*", "", colnames(counts))
+colnames(counts) <- gsub("-", "_", colnames(counts))
+counts <- as.data.frame(counts)
+# colnames(counts) 
+rownames(counts) <- counts$Geneid
+counts <- counts[, -which(names(counts) %in% "Geneid")]
+# counts <- counts %>% rename(S73 = SMG343, S74 = SMG405, S75 = SMG412)
+# in case you want to remove a few samples
+
+counts <- counts[, order(names(counts))]
+head(counts)
+```
+
+## Group information
+
+Generate the group information from the metadata.
+
+```{r 8_Group-information}
+groupData <- readxl::read_xlsx(path = sampleFile, sheet = 1, col_names = TRUE)
+
+character_vars <- lapply(groupData, class) == "character"
+groupData <- groupData[-which(groupData$SampleID %in% drop), ]
+groupData[, character_vars] <- lapply(groupData[, character_vars], as.factor)
+
+groupData <- groupData[order(groupData$SampleID),]
+groupData <- as.data.frame(groupData)
+groupData
+``` 
+
+## Gene Annotation
+
+Get all the gene annotation from Ensembl that will be used for the analysis. This takes a while so you can run it once and then comment it out (using the '#' character at the start of the Strain) and load from the saved Rdata object that we created on that first run.
+
+In this case, counts are based on _external_gene_name_.
+
+```{r 9_Gene-Annotation}
+if(species == "human"){
+EN_species = "hsapiens_gene_ensembl"
+org_species = "org.Hs.eg.db"
+} else if (species == "mouse"){
+EN_species = "mmusculus_gene_ensembl"
+org_species = "org.Mm.eg.db"
+} else {
+print("another species")
+}
+EN_species
+cat(paste0("The Biomart database was: \t", EN_species))
+
+if(annotation == "geneName"){
+geneFilter = "external_gene_name"
+} else if (annotation == "geneID"){
+geneFilter = "ensembl_gene_id"
+} else {
+print("another annotation")
+}
+cat(paste0("The attribute used for filtering Biomart database was: \t", geneFilter))
+
+ensembl_gene = useEnsembl(biomart="ENSEMBL_MART_ENSEMBL",
+                 host="ensembl.org",
+                 dataset = EN_species)
+
+allGeneSet <- getBM(mart = ensembl_gene,
+      attributes = c("ensembl_gene_id", "external_gene_name", "entrezgene_id", "gene_biotype", "chromosome_name"),
+      filters = geneFilter,
+      values = rownames(counts))
+head(allGeneSet)
+save(allGeneSet, file = paste0(outdir, set, "_allGeneSet.RData"))
+# load(paste0(outdir, set, "_allGeneSet.RData"))
+```
+
+## Get rid of genes on contigs (and X and Y if needed)
+
+```{r 11_chromosome_specific_genes, warning=FALSE}
+counts <- counts %>%
+    tibble::rownames_to_column(var = "GeneID") %>% 
+    left_join(allGeneSet, by = c("GeneID" = geneFilter))
+
+n_occur <- data.frame(table(counts$GeneID))
+# head(n_occur[order(n_occur$Freq, decreasing = TRUE), ])
+
+keep <- !duplicated(counts$GeneID)
+counts <- counts[keep,]
+row.names(counts) <- counts$GeneID
+
+if(species == "human"){
+chr <- c(1:22, "Y", "X")
+} else if (species == "mouse"){
+chr <- c(1:19, "Y", "X")
+} else {
+print("another species")
+}
+
+counts <- counts[counts$chromosome_name %in% chr,]
+n_genes <- as.data.frame(table(counts$chromosome_name))
+n_genes <- n_genes[order(as.numeric(as.character(n_genes$Var1))),]
+
+# pdf(paste0(outdir, set, "_bar_plot_genes_beforefilter.pdf"), width = 25, height = 10 )
+p <-ggplot(n_genes, aes(x = factor(Var1, level = Var1), Freq))
+p + geom_bar(stat = "identity") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5),
+        axis.text.y = element_text(size = 12),
+        axis.title.x = element_text(size=14,face="bold"),
+        axis.title.y = element_text(size=14,face="bold")) +
+  labs(y="Total number of genes", x = "Chromosome") +
+  scale_y_continuous(expand = c(0,0))
+# dev.off()
+if(annotation == "geneID"){
+  counts <- counts %>%
+    dplyr::select(-external_gene_name, -chromosome_name, -GeneID, -entrezgene_id, -gene_biotype)
+} else if(annotation == "geneName"){
+  counts <- counts %>%
+    dplyr::select(-ensembl_gene_id, -chromosome_name, -GeneID, -entrezgene_id, -gene_biotype)
+} else{
+  print("Something is missing: geneName or geneID")
+}
+# head(counts)
+```
+
+## DGE List object
+
+Load the data into a DGEList. This will contain all the gene information throughout the analysis. 
+
+Initially, we'd like to know how many genes are expressed greater than 0 (if a gene is 0 it comes up as "TRUE").
+
+```{r 13_DGE-List-object}
+cds <- DGEList(counts)
+
+dim(cds)
+table(rowSums(cds$counts==0)==ncol(cds))
+```
+
+## Low gene count QC
+
+Low gene expression counts are not particularly informative and can increase the level of noise in the differential expression analyses. Here we are going to remove any gene that is expressed less than 1 count per million (CPM) in more than 4 samples (which is the size of the smallest group).
+
+The plots show the filtering before and after. Note the level of expression at low values (< 0 logCPM) in the first plot.
+
+```{r 14_Low-gene-count-QC}
+lcpm <- edgeR::cpm(cds, log = TRUE)
+nsamples <- ncol(cds)
+col <- brewer.pal(12, "Paired")
+par(mfrow=c(1,2))
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.5), las=2,
+      main="", xlab="")
+title(main="A. Raw data", xlab="Log-cpm")
+abline(v=0, lty=3)
+for (i in 2:nsamples){
+ den <- density(lcpm[,i])
+ lines(den$x, den$y, col=col[i], lwd=2)
+}
+```
+
+
+```{r 15_cpm_filter}
+cpm <- edgeR::cpm(cds)
+# we'll use 3 samples as the count off for having a cpm > 2. 
+## NOTE: This needed to change to the size of their smallest group!!
+keep.exprs <- rowSums(cpm>2)>=3
+cds <- cds[keep.exprs,, keep.lib.sizes=FALSE]
+dim(cds)
+```
+
+
+```{r 16_Low-gene-count-QC2}
+lcpm <- edgeR::cpm(cds, log=TRUE)
+plot(density(lcpm[,1]), col=col[1], lwd=2, ylim=c(0,0.5), las=2,
+      main="", xlab="")
+title(main="B. Filtered data", xlab="Log-cpm")
+abline(v=0, lty=3)
+for (i in 2:nsamples){
+   den <- density(lcpm[,i])
+   lines(den$x, den$y, col=col[i], lwd=2)
+}
+# legend("topright", sampleID, text.col=col, bty="n")
+```
+
+## Trimmed mean of M-values (TMM) normalization
+
+Now we need to normalise the filtered data, so that everything is comparable.
+
+```{r 17_TMM}
+cds <- calcNormFactors(cds, method = "TMM")
+```
+
+## MDS plot - Sample Clustering
+
+First of all we need to establish how different our sample groups are. The less that samples cluster, the more different their gene expression values are likely to be, which will lead to good differentially expressed genes. If samples from different groups overlap on a clustering plot, there is unlikely to be differentially expressed genes as a result. 
+
+Here we use a multi-dimensional scaling plot (MDS) to show sample similarity. Different groups are coloured separately.
+
+```{r 18_MDS-plot1, warning = FALSE, fig.width= 16}
+mds <- limma::plotMDS(cds, plot = FALSE)
+a <- lapply(contrast_columns, function(x){
+  plot1 <- cbind(as.data.frame(mds$x), as.data.frame(mds$y)) %>%
+      mutate(SampleID = rownames(cds$samples)) %>%
+      # tibble::rownames_to_column(var = "SampleID") %>%
+      inner_join(groupData, by = "SampleID") %>% 
+      ggplot(aes(mds$x,mds$y, label = SampleID, 
+                 colour = .data[[x]])) +
+      geom_point(size = 3) +
+      # geom_label(aes(label = SampleID)) +
+      # scale_x_continuous(limits = c(-4,4)) +
+      # scale_y_continuous(limits = c(-0.7,0.7)) +
+      xlab(paste0("Dimension 1 (", round(mds$var.explained[1]*100), "%)")) +
+      ylab(paste0("Dimension 2 (", round(mds$var.explained[2]*100), "%)")) +
+      theme_bw()
+
+  plot2 <- cbind(as.data.frame(mds$x), as.data.frame(mds$y)) %>%
+    mutate(SampleID = rownames(cds$samples)) %>%
+    # tibble::rownames_to_column(var = "SampleID") %>%
+    inner_join(groupData, by = "SampleID") %>% 
+    ggplot(aes(mds$x,mds$y, label = SampleID, 
+               colour = .data[[x]])) +
+    geom_point(size = 3) +
+    geom_label(aes(label = SampleID)) +
+    # scale_x_continuous(limits = c(-4,4)) +
+    # scale_y_continuous(limits = c(-0.7,0.7)) +
+    xlab(paste0("Dimension 1 (", round(mds$var.explained[1]*100), "%)")) +
+    ylab(paste0("Dimension 2 (", round(mds$var.explained[2]*100), "%)")) +
+    theme_bw()
+  print(ggpubr::ggarrange(plot1, plot2, common.legend = T, ncol=2, legend = "right", widths = 7, heights = 14))
+  ggsave(filename = paste0(outdir, set, "_MDS_Plot_", x, ".pdf"), plot = plot1, width = 8, height = 8)
+  ggsave(filename = paste0(outdir, set, "_MDS_Plot_", x, "_labeled.pdf"), plot = plot2, width = 8, height = 8)
+})
+```
+
+
+### `plotRLE` plot for raw counts
+
+plotRLE produces a Relative Log Expression (RLE) plot of the counts in x.
+
+```{r 21_plotRLE_plot_for_raw_counts, fig.height=10, fig.width=10}
+a <- lapply(contrast_columns, function(x){
+    par(las=3, mar=c(8,4,4,2))
+    EDASeq::plotRLE(set.ruv, outline=FALSE,  
+                    # ylim=c(-3, 3), 
+                    col=colors[groupData[[x]]],
+                    legend = TRUE,
+                    style = "full")+title(main = paste0("plotRLE - raw counts ", x))
+    pdf(file = paste0(outdir, set, "_plotRLE_rawcounts_", x, ".pdf"), width = 10, height = 10)
+    EDASeq::plotRLE(set.ruv, outline=FALSE,  
+                    # ylim=c(-3, 3), 
+                    col=colors[groupData[[x]]])+title(main = paste0("plotRLE - raw counts ", x))
+    dev.off()
+})
+```
+
+
+
+## Differential Gene Expression using `limma-voom`
+
+Now we need to setup our hypotheses for the differential expression tests. Ideally, we want to compare the expression of each group with each other to identify genes that are significantly differentially expressed.
+    
+To do this we set up a design matrix with all the samples defined, and then a contrast matrix to define the groups that we want to compare.
+
+```{r 26_design}
+
+design <- model.matrix(~0 + groupData[[designColumn]] , data = groupData)
+
+colnames(design) <- gsub(".*]", "", colnames(design))
+design
+is.fullrank(design)
+nonEstimable(design)
+colnames(design)
+contr.matrix <- makeContrasts(
+                              FA1_FA3 = FA1 - FA3,
+                              FA1_MB1 = FA1 - MB1,
+                              FA1_MB2 = FA1 - MB2,
+                              FA1_MB3 = FA1 - MB3,
+                              FA3_MB1 = FA3 - MB1,
+                              FA3_MB2 = FA3 - MB2,
+                              FA3_MB3 = FA3 - MB3,
+                              MB1_MB2 = MB1 - MB2,
+                              MB1_MB3 = MB1 - MB3,
+                              MB2_MB3 = MB2 - MB3,
+                              Female_Male = (FA1 + FA3)/2 - (MB1 + MB2 + MB3)/3,
+                              FA1_specific = FA1 - (FA3 + MB1 + MB2 + MB3)/4,
+                              FA3_specific = FA3 - (FA1 + MB1 + MB2 + MB3)/4,
+                              MB1_specific = MB1 - (FA1 + FA3 + MB2 + MB3)/4,
+                              MB2_specific = MB2 - (FA1 + FA3 + MB1 + MB3)/4,
+                              MB3_specific = MB3 - (FA1 + FA3 + MB1 + MB2)/4,
+    levels = colnames(design))
+geno <- colnames(contr.matrix)
+# colnames(contr.matrix) <- abbreviate(colnames(contr.matrix))
+contr.matrix
+```
+
+## Information on `limma-voom` fitted models
+
+To estimate variance and apply a Strainar model, we use the `limma voom` method of estimating variance in RNAseq gene counts. While most other methods of estimating dispersion (another term that is analogous to variance), `voom` is shown to be more robust to sequencing counts, which profile gene counts are at a much higher resolution. From the abstract of the `limma voom` paper:
+
+\  
+
+"The voom method estimates the mean-variance relationship of the log-counts, generates a precision weight for each observation and enters these into the limma empirical Bayes analysis pipeStrain. This opens access for RNA-seq analysts to a large body of methodology developed for microarrays."
+
+\  
+
+Using the `voom` function here, the counts will be transformed and fitted to the model defined above and the level of variance determined across all genes.
+
+```{r 27_limma}
+vfit <- voom(cds, design, plot=TRUE) %>%
+  lmFit(design) %>%
+  contrasts.fit(contrasts=contr.matrix)
+```
+
+## Summary table for differentially expressed genes
+
+The number of differentially expressed genes (non-significant, up-regulated or down-regularted) for each comparison are outStraind here for each comparison:
+
+```{r 28_Summary_table}
+summary(decideTests(vfit, p.value = 0.05))
+```
+
+## Additional logFC cutoff
+
+We have used no cutoff for this which has given a lot of differentially expressed genes. But we should potentially look at only genes that give a difference greater than a specific level. So lets cut the DE genes at a log fold change of 1 (which is a fold change of 2).
+
+```{r 29_efit}
+efit <- vfit %>%
+  eBayes()
+
+summary(decideTests(efit, p.value = 0.05, lfc = LFC_cutoff))
+
+# tfit <- treat(efit, lfc=1)
+# table(decideTests(tfit))
+dt <- decideTests(efit)
+summary <- as.data.frame(dt@.Data)
+
+# summary(decideTests(tfit, p.value = 0.05, lfc = 0.5))
+```
+
+## DE Results Tables and Annotation
+
+Now lets generate some DE tables for each of the comparisons. This bit of code prints the DE gene information and adds annotation information for your results. We'll produce two list of dataframes; one with only DE genes that are FDR < 0.05 (significant), and All genes regardless of significance. That way you can see whats happening with everything.
+
+
+```{r 31_DEG_tables}
+if(annotation == "geneID"){
+    resultsTblList <- lapply(1:length(geno), function(x){
+      topTreat(efit, coef=x, n=Inf) %>%
+        tibble::rownames_to_column(var = "GeneID") %>% 
+        mutate(ensembl_gene_id = gsub("~.*", "", GeneID)) %>% 
+        left_join(allGeneSet, by = c("ensembl_gene_id" = geneFilter)) %>%
+        dplyr::select(GeneID,
+                      ensembl_gene_id,
+                      external_gene_name,
+                      entrezgene_id, 
+                      logFC, AveExpr, t, P.Value, B, FDR = adj.P.Val) %>%
+        arrange(FDR) %>%
+        dplyr::filter(FDR < 0.05 & abs(logFC) >= LFC_cutoff)
+    })
+    names(resultsTblList) <- geno
+    
+    resultsTblListAll <- lapply(1:length(geno), function(x){
+      topTreat(efit, coef=x, n=Inf) %>%
+        tibble::rownames_to_column(var = "GeneID") %>% 
+        mutate(ensembl_gene_id = gsub("~.*", "", GeneID)) %>% 
+        left_join(allGeneSet, by = c("ensembl_gene_id" = geneFilter)) %>%
+        dplyr::select(GeneID,
+                      ensembl_gene_id,
+                      external_gene_name,
+                      entrezgene_id, 
+                      logFC, AveExpr, t, P.Value, B, FDR = adj.P.Val) %>%
+        arrange(FDR)
+    })
+    names(resultsTblListAll) <- geno
+} else if(annotation == "geneName"){
+      resultsTblList <- lapply(1:length(geno), function(x){
+      topTreat(efit, coef=x, n=Inf) %>%
+        tibble::rownames_to_column(var = "GeneID") %>% 
+        left_join(allGeneSet, by = c("GeneID" = geneFilter)) %>%
+        dplyr::select(GeneID, 
+                      ensembl_gene_id,
+                      entrezgene_id, 
+                      logFC, AveExpr, t, P.Value, B, FDR = adj.P.Val) %>%
+        arrange(FDR) %>%
+        dplyr::filter(FDR < 0.05 & abs(logFC) >= LFC_cutoff)
+    })
+    names(resultsTblList) <- geno
+    
+    resultsTblListAll <- lapply(1:length(geno), function(x){
+      topTreat(efit, coef=x, n=Inf) %>%
+        tibble::rownames_to_column(var = "GeneID") %>% 
+        left_join(allGeneSet, by = c("GeneID" = geneFilter)) %>%
+        dplyr::select(GeneID, 
+                      ensembl_gene_id,
+                      entrezgene_id, 
+                      logFC, AveExpr, t, P.Value, B, FDR = adj.P.Val) %>%
+        arrange(FDR)
+    })
+    names(resultsTblListAll) <- geno
+}
+head(resultsTblListAll[[1]])
+```
+
+The number of significant DEGs for each comparison with LFC cut-off of 'r LFC_cutoff':
+
+```{r 32_DEGs_filter}
+resultsTblList <- lapply(resultsTblList, function(x){
+  if(nrow(x) > 1){
+    return(x)
+  } else {
+    return(NULL)
+  }
+})
+is.not.null <- function(x) !is.null(x)
+resultsTblList = resultsTblList[which(sapply(resultsTblList, is.not.null))]
+lapply(resultsTblList, nrow)
+```
+
+## Top Results
+
+Lets show the top 10 genes for each comparison. The name of each comparison is written before the corresponding table.
+
+```{r 33_head_function}
+ht <- function(d, m=10, n=m){
+  # print the head and tail together
+  list(UP = head(d,m), DOWN = tail(d,n))
+}
+
+lapply(resultsTblList, function(x){
+  ht(x %>% 
+    arrange(desc(logFC)))
+})
+```
+
+## Results of all genes and just DE genes
+
+The DEG results were exported to the following files:
+
+```{r 34_export}
+# Combine DE gene tables into one dataframe
+flatDE <- bind_rows(resultsTblList, .id = "Comparison")
+writexl::write_xlsx(flatDE, paste0(outdir, set, "_all_diffExpressed_FDR5_genes.xlsx"))
+cat(paste0(outdir, set, "_all_diffExpressed_FDR5_genes.xlsx") %>% gsub(baseDir, "./", .)) 
+
+flatAll <- bind_rows(resultsTblListAll, .id = "Comparison")
+writexl::write_xlsx(flatAll, paste0(outdir, set, "_all_genes.xlsx"))
+cat(paste0(outdir, set, "_all_genes.xlsx") %>% gsub(baseDir, "./", .))
+```
+
+## Volcano plots
+
+Now we should have a look at how the differences (logFC) compare to the significance (negative log of the FDR). This is what we call a volcano plot. Here we have also coloured each gene by whether it was significant or not.
+
+```{r 43_Volcano_plots, fig.height=6, fig.width=10}
+resultsTblListAll <- lapply(1:length(geno), function(x){
+  topTreat(efit, coef=x, n=Inf) %>%
+    tibble::rownames_to_column(var = "GeneID") %>% 
+    mutate(GeneID = gsub(".*~", "", GeneID)) %>% 
+    dplyr::select(GeneID,
+                  logFC, AveExpr, FDR = adj.P.Val) %>%
+    arrange(FDR)
+})
+names(resultsTblListAll) <- geno
+
+vplots <- lapply(names(resultsTblListAll), function(x){
+  d <- resultsTblListAll[[x]] %>% mutate(Significance= ifelse(FDR > 0.05, "Not Sig",
+                                        ifelse(logFC > 1, "Up-regulated", 
+                                               ifelse(logFC < -1, "Down-regulated", "Not Sig"))))
+  if(length(levels(as.factor(d$Significance))) == 3) {
+      p <- d %>% 
+      ggplot(aes(logFC, -log10(FDR), colour = Significance)) + #volcanoplot with log2Foldchange versus adjusted.P.Value
+        geom_point() +
+        scale_color_manual(values=c("blue", "black", "red")) +
+        theme_bw()+
+        ggtitle(x)
+    
+      p + geom_text_repel(data=head(d, 10), aes(label=GeneID))
+  }
+})
+
+# Plot them all to the HTML
+ggpubr::ggarrange(common.legend = F, ncol=2, legend = "right", plotlist = vplots)
+```
+
+## UpSet plots
+
+I plotted the UpSet plots which is an alternative way for presenting the overlapping DEGs in each group. This could replace the Venn diagram. 
+
+```{r 44_UpSet_plots, fig.height=20}
+list <- lapply(resultsTblList, function(x){
+  x <- x %>% 
+    filter(abs(logFC) > 1 & FDR < 0.05)
+  x$GeneID
+})
+sapply(list, length) %>% as.table()
+max <- sapply(list, length) %>% as.table() %>% max() * 1.2
+upset(fromList(list), set_size.show = TRUE, nsets = length(list), set_size.scale_max = max)
+```
+
+## Creating a report
+
+An interactive html report has been saved in the following folder:
+
+```{r 46_interactive_report}
+reportDirectory <- paste0(outdir, "report") %>% gsub(baseDir, "./", .)
+htmlRep <- HTMLReport(shortName=paste0(set, "_LIMMA_report"), title=paste0(set, "_LIMMA_report"),
+                      reportDirectory=reportDirectory)
+publish(flatDE, htmlRep)
+url <- finish(htmlRep)
+# browseURL(url)
+cat("Folder name is: \n")
+cat(reportDirectory)
+cat("File name is: \n")
+list.files(reportDirectory, pattern = ".html")
+```
+
+## Functional Enrichment
+
+Lastly, we want to see if our differentially expressed genes are functionally relevant. Here I am going to search each gene list against Gene Ontology and KEGG pathway databases. This is a very basic search, but you can do it with web-based GO/KEGG search tools if you like as well. All you need is the input gene list from each comparison.
+
+I have output the results to Excel spreadsheets below.
+
+```{r 47_GO, fig.width = 15, fig.height = 8}
+head(resultsTblList[[1]])
+
+if(species == "human"){
+GOspecies = "Hs"
+KEGGspecies = "hsa"
+} else if (species == "mouse"){
+GOspecies = "Mm"
+KEGGspecies = "mmu"
+} else {
+print("another species")
+}
+GOspecies
+KEGGspecies
+
+deGoEnrich <- lapply(resultsTblList, function(x){
+  de <- x$entrezgene_id
+  goana(de = de, species=GOspecies) %>%
+    dplyr::filter(P.DE < 0.05) %>%
+    arrange(P.DE)
+})
+
+names(deGoEnrich) <- geno
+lapply(deGoEnrich, head, 10)
+
+deKeggEnrich <- lapply(resultsTblList, function(x){
+  de <- x$entrezgene_id
+  kegga(de = de, species.KEGG = KEGGspecies) %>%
+    dplyr::filter(P.DE < 0.05) %>%
+    arrange(P.DE)
+})
+
+names(deKeggEnrich) <- geno
+lapply(deKeggEnrich, head, 10)
+
+# Combine DE gene tables into one dataframe
+flatDeKegg <- bind_rows(deKeggEnrich, .id = "Comparison")
+writexl::write_xlsx(flatDeKegg, paste0(outdir, set, "_DE_genes_KEGG.xlsx"))
+
+flatDeGo <- bind_rows(deGoEnrich, .id = "Comparison")
+writexl::write_xlsx(flatDeGo, paste0(outdir, set, "_DE_genes_GO.xlsx"))
+```
+
+## Finding Pathways from Differential Expressed Genes
+
+```{r 48_gene_matrix}
+# https://github.com/twbattaglia/RNAseq-workflow
+
+# Remove any genes that do not have any entrez identifiers
+gene_matrix <- lapply(resultsTblList, function(x){
+  y <- subset(x, is.na(entrezgene_id) == FALSE)
+  # Create a matrix of gene log2 fold changes
+  z <- y$logFC
+  # Add the entrezID's as names for each logFC entry
+  names(z) <- y$entrezgene_id
+  return(z)
+})
+# names(gene_matrix) <- geno
+# lapply(gene_matrix, head)
+```
+
+##  Enrich genes using the KEGG database
+
+```{r 49_KEGG, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
+kegg_enrich <- lapply(gene_matrix, function(x){ 
+  enrichKEGG(gene = names(x),
+                          organism = species,
+                          pvalueCutoff = 0.05, 
+                          qvalueCutoff = 0.10)
+})
+# Plot results
+
+lapply(names(kegg_enrich), function(x){ 
+  barplot(kegg_enrich[[x]], 
+          drop = TRUE, 
+          showCategory = 20, 
+          title = paste0("KEGG Enrichment Pathways for ", x),
+          font.size = 12)
+})
+```
+
+## Enrich genes using the Gene Ontology
+
+### Biological process
+
+```{r 50_GO_BP, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
+go_enrich <- lapply(gene_matrix, function(x){ 
+    enrichGO(gene = names(x),
+                      OrgDb = org_species, 
+                      readable = T,
+                      ont = "BP",
+                      pvalueCutoff = 0.05, 
+                      qvalueCutoff = 0.10)
+})
+
+# Plot results
+lapply(names(go_enrich), function(x){ 
+  barplot(go_enrich[[x]], 
+          drop = TRUE, 
+          showCategory = 20, 
+          title = paste0("GO Biological Process for ", x),
+          font.size = 12)
+})
+```
+
+### Molecular function
+
+```{r 51_GO_MF, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
+go_enrich <- lapply(gene_matrix, function(x){ 
+    enrichGO(gene = names(x),
+                      OrgDb = org_species, 
+                      readable = T,
+                      ont = "MF",
+                      pvalueCutoff = 0.05, 
+                      qvalueCutoff = 0.10)
+})
+
+
+# Plot results
+lapply(names(go_enrich), function(x){ 
+  barplot(go_enrich[[x]], 
+          drop = TRUE, 
+          showCategory = 20, 
+          title = paste0("GO Molecular Function for ", x),
+          font.size = 12)
+})
+```
+
+### Cellular compartment
+
+```{r 52_GO_CC, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
+go_enrich <- lapply(gene_matrix, function(x){ 
+    enrichGO(gene = names(x),
+                      OrgDb = org_species, 
+                      readable = T,
+                      ont = "CC",
+                      pvalueCutoff = 0.05, 
+                      qvalueCutoff = 0.10)
+})
+
+# Plot results
+lapply(names(go_enrich), function(x){ 
+  barplot(go_enrich[[x]], 
+          drop = TRUE, 
+          showCategory = 20, 
+          title = paste0("GO Cellular Compartment for ", x),
+          font.size = 12)
+})
+```
+
+## Session details
+
+```{r 59_sessionInfo}
+sessionInfo()
+```
+
+
