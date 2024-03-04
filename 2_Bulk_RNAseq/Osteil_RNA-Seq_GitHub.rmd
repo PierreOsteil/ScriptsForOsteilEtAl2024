@@ -1,5 +1,5 @@
 ---
-title: "Pierre Osteil data for RNA-Seq Excluding FA2"
+title: "Pierre Osteil data for RNA-Seq"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -17,23 +17,6 @@ output:
 
 ```{r 1_setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-```
-
-```{r 2_installation, eval=FALSE, include=FALSE}
-sudo apt -y install libcurl4-openssl-dev
-sudo apt-get install libxml2
-sudo apt-get install libxml2-dev
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-
-BiocManager::install("pacman")
-
-load.lib <- c("biomaRt", "ngsReports", "tidyverse", "limma", "edgeR", "pander", "knitr", "ggplot2",
-              "ggrepel", "ReportingTools", "Glimma", "here", "UpSetR", "org.Mm.eg.db", "org.Hs.eg.db",
-              "GO.db", "gage", "ggsci", "clusterProfiler", "pathview", "RColorBrewer", "RUVSeq"
-              "DOSE", "scater", "dittoSeq")
-
-BiocManager::install(load.lib)
 ```
 
 
@@ -68,7 +51,7 @@ p_load(scater)
 
 
 baseDir <- here("")
-set <- "20220908_Pierre_GRCh38_geneID_noRUV_upDownGo_exFA2"
+set <- "20220908_Pierre_GRCh38_geneID_noRUV_upDownGo"
 dir.create(paste0("output_", set))
 outdir <- here(paste0("output_", set,"/"))
 annotation <- "geneID" # "geneName" or "geneID"
@@ -77,22 +60,12 @@ species <- "human" # "human" or "mouse"
 panderOptions("table.split.table", Inf)
 contrast_columns <- c("CellLine", "Sex")
 designColumn <- "CellLine"
-RUV_k=2
-RUV_Design=FALSE
 LFC_cutoff <- 1
 sampleFile <- "SampleTable_Pierre_RNASeq.xlsx"
 cal_GO = TRUE
 cal_KEGG = TRUE
 cal_ditto = TRUE
-# baseDir
 ```
-
-**Nader Aryamanesh, PhD MSc BSc**  
-Senior Research Officer - Bioinformatics  
-Embryology Research Unit, CMRI  
-Mobile: +61 487 659 466  
-Phone: +61 2 8865 2988  
-Email: naryamanesh@cmri.org.au 
 
 # Analysis Details
 
@@ -105,63 +78,6 @@ Email: naryamanesh@cmri.org.au
 ## Data processing
 
 Initial raw read processing was performed using an in-house pipeStrain developed at CMRI. Raw paired-end FASTQ reads were aligned to the `r genome` version of the `r species` genome using the transcriptome algorthim `STAR` (https://github.com/alexdobin/STAR). After alignment, mapped sequence reads were summarised to the `r genome` gene intervals using the tool `featureCounts`, available through the package `RSubread` (https://bioconductor.org/packages/release/bioc/html/Rsubread.html). 
-
-## Parameters
-
-```{r 4_Parameters}
-a <- lapply(ls(), function(x){
-  print(paste0(as.name(x), " = ", eval(as.name(x))))
-})
-```
-
-## FastQC collation
-
-This is the FastQC results for the samples. This code chunk produces a range of plots that describe the quality of the data. For more information on the plots, look at the [`ngsReports` package on bioconductor](https://bioconductor.org/packages/release/bioc/html/ngsReports.html).
-
-```{r 5_FastQC_collation, fig.height=15}
-files <- list.files(paste0(baseDir, "F0_qc/"), pattern = "fastqc.zip$", full.names = TRUE)
-fdl <- FastqcDataList(files)
-
-reads <- readTotals(fdl)
-
-as_tibble(reads)
-
-plotSummary(fdl)
-plotReadTotals(fdl)
-plotBaseQuals(fdl[1:12], plotType = "boxplot")
-# plotBaseQuals(fdl[13:24], plotType = "boxplot")
-
-plotDupLevels(fdl)
-# plotGcContent(fdl[1:12], plotType = "Strain",  theoreticalType = "Transcriptome")
-# plotGcContent(fdl[13:24], plotType = "Strain",  theoreticalType = "Transcriptome")
-```
-
-## Count details
-
-Below is a summary of the final gene counts (before and after deduplication). Stats are output to a csv file that can be looked at using Excel.
-
-```{r 6_summary_dedup, message=FALSE}
-countSummary <- read_delim(paste0(baseDir,
-                                  "F6_counts/project_allBams_", genome, ".geneCounts_", annotation, ".tsv.summary.gz"),
-                           delim = "\t")
-colnames(countSummary) <- gsub(".*/F3_star/", "", colnames(countSummary))
-colnames(countSummary) <- gsub(paste0("-LE.*", genome, "_Aligned.sortedByCoord.out.bam"), "", colnames(countSummary))
-colnames(countSummary) <- gsub("-", "_", colnames(countSummary))
-
-# Counts to excel
-pander(countSummary[c(1,2,12,14),])
-write_excel_csv(countSummary[c(1,2,12,14),], paste0(outdir, set, "_Mapping_stats.csv"))
-
-countSummaryDe <- read_delim(paste0(baseDir,
-                            "F6_counts/project_allBams_", genome, ".dedup.geneCounts_", annotation, ".tsv.summary.gz"),
-                            delim = "\t")
-colnames(countSummaryDe) <- gsub(".*/F4_markDupPicard/", "", colnames(countSummaryDe))
-colnames(countSummaryDe) <- gsub(paste0("-LE.*", genome, "_Aligned.sortedByCoord.out.dedup.bam"), "", colnames(countSummaryDe))
-colnames(countSummaryDe) <- gsub("-", "_", colnames(countSummaryDe))
-# Counts to excel
-pander(countSummaryDe[c(1,2,12,14),])
-write_excel_csv(countSummaryDe[c(1,2,12,14),], paste0(outdir,set, "_Mapping_stats_de.csv"))
-```
 
 ## Import gene counts (dedup)
 
@@ -180,8 +96,6 @@ rownames(counts) <- counts$Geneid
 counts <- counts[, -which(names(counts) %in% "Geneid")]
 # counts <- counts %>% rename(S73 = SMG343, S74 = SMG405, S75 = SMG412)
 # in case you want to remove a few samples
-drop <- c("FA2_Day1_A", "FA2_Day1_B", "FA2_Day1_C")
-counts <- counts[, -which(names(counts) %in% drop)]
 
 counts <- counts[, order(names(counts))]
 head(counts)
@@ -193,17 +107,6 @@ Generate the group information from the metadata.
 
 ```{r 8_Group-information}
 groupData <- readxl::read_xlsx(path = sampleFile, sheet = 1, col_names = TRUE)
-# colnames(groupData) <- c("SampleID", "SampleName", "Genotype", "Age", "Set")
-# groupData <- groupData %>%
-#     mutate(SampleID = paste0("S", SampleID)) %>%
-#     mutate(Tissue = gsub(".*_", "", SampleName)) %>%
-#     mutate(Strain = SampleName) %>%
-#     mutate(Strain = gsub("MG.*", "MG", Strain)) %>%
-#     mutate(Strain = gsub("DA.*", "DA", Strain)) %>%
-#     mutate(Strain_Age = paste(Strain, Age, sep = "_")) %>%
-#     mutate(Genotype_Age = paste(Genotype, Age, sep = "_")) %>%
-#     mutate(Tissue_Age_Genotype_Strain = paste(Tissue, Age, Genotype, Strain, sep = "_"))
-# tbl_df(groupData)
 
 character_vars <- lapply(groupData, class) == "character"
 groupData <- groupData[-which(groupData$SampleID %in% drop), ]
@@ -255,25 +158,6 @@ save(allGeneSet, file = paste0(outdir, set, "_allGeneSet.RData"))
 # load(paste0(outdir, set, "_allGeneSet.RData"))
 ```
 
-## Extract number of counts per sample
-
-We can quickly check the __millions__ of fragments that uniquely aligned to the genes (the second argument of round tells how many decimal points to keep).
-
-```{r 10_Extract-number-of-counts-per-sample, fig.height=7, fig.width= 25}
-reads <- round( colSums(counts) / 1e6, 1 )
-reads_df <- as.data.frame(reads)
-# pdf(paste0(outdir, set, "_bar_plot_reads.pdf"), width = 25, height = 10 )
-p <-ggplot(reads_df, aes(x = factor(row.names(reads_df), levels = row.names(reads_df)), reads))
-p + geom_bar(stat = "identity") + theme_bw() +
-  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title.x = element_text(size=14,face="bold"),
-        axis.title.y = element_text(size=14,face="bold")) +
-  labs(y="Total Number of Reads (Millions)", x = "SampleID") +
-  scale_y_continuous(expand = c(0,0))
-# dev.off()
-```
-
 ## Get rid of genes on contigs (and X and Y if needed)
 
 ```{r 11_chromosome_specific_genes, warning=FALSE}
@@ -320,24 +204,6 @@ if(annotation == "geneID"){
   print("Something is missing: geneName or geneID")
 }
 # head(counts)
-```
-
-## Change gene names
-
-```{r 12_Change-gene-names}
-dim(counts)
-if(annotation == "geneID"){
-  counts <- as.data.frame(counts) %>%
-    tibble::rownames_to_column(var = "GeneID") %>%
-    left_join(allGeneSet, by = c("GeneID" = geneFilter)) %>%
-    mutate(GeneName = paste0(GeneID, "~", external_gene_name)) %>%
-    dplyr::select(-GeneID, -external_gene_name, -gene_biotype, -chromosome_name, -entrezgene_id)  %>%
-    distinct(GeneName, .keep_all = TRUE) %>%
-    filter(GeneName != "") %>%
-    tibble::column_to_rownames(var = "GeneName")
-}
-dim(counts)
-head(counts)
 ```
 
 ## DGE List object
@@ -448,41 +314,6 @@ a <- lapply(contrast_columns, function(x){
 })
 ```
 
-This is a very good sign. Untreated Ages (ctrl) are clustered away from treated Ages.
-
-## Interactive MDS plot - Sample Clustering 
-
-```{r 19_MDS_plot_interactive}
-a <- lapply(contrast_columns, function(x){
-    label <- paste(groupData$SampleID, sep = "_")
-    gr <- paste(groupData[[x]], sep = "_")
-    
-    glMDSPlot(cds, groups=gr, 
-              labels = label, 
-              main = "MDS Plot", 
-              path = outdir, 
-              folder = "glimma-plots",
-              html = paste0(set, "_MDS-Plot_",x),
-              launch=FALSE)
-})
-```
-
-## Running RUV on raw counts (original cds)
-
-```{r 20_Running_RUV_on_raw_counts}
-x <- cds$counts
-# cl <- groupData$Batch 
-# spikes <- rownames(x)[grep("^ERCC", rownames(x))]
-# spikes # The list of the house keeping genes (common genes among all samples) with the same expected expression to be used for RUNg normalisation.
-set.ruv <- newSeqExpressionSet(as.matrix(x),
-                           phenoData = data.frame(groupData, row.names=colnames(x)))
-set.ruv
-head(set.ruv@assayData$counts[,1:5])
-# head(set.ruv@assayData$normalizedCounts[,1:5])
-# pData(set.ruv)
-colors <- brewer.pal(10, "Set3")
-# names(colors) <- levels(pData(set.ruv)$Subtypes_by_IHC)
-```
 
 ### `plotRLE` plot for raw counts
 
@@ -504,117 +335,6 @@ a <- lapply(contrast_columns, function(x){
 })
 ```
 
-### `plotRLE` from `betweenLaneNormalization` function
-
-Between-lane normalization for sequencing depth and possibly other distributional differences between lanes.
-
-```{r 22_plotRLE_plot_for_betweenLaneNormalization_counts, fig.height=10, fig.width=10}
-set.ruv <- betweenLaneNormalization(set.ruv, which="upper")
-# head(set.ruv@assayData$counts[,1:5])
-# head(set.ruv@assayData$normalizedCounts[,1:5])
-a <- lapply(contrast_columns, function(x){
-    par(las=3, mar=c(8,4,4,2))
-    EDASeq::plotRLE(set.ruv, outline=FALSE, 
-                    # ylim=c(-3, 3),
-                    col=colors[groupData[[x]]])+title(main = paste0("plotRLE - raw counts betweenLaneNormalization ", x))
-    pdf(file = paste0(outdir, set, "_plotRLE_rawcounts_betweenLaneNormalization_", x, ".pdf"), width = 10, height = 10)
-    par(las=3, mar=c(8,4,4,2))
-    EDASeq::plotRLE(set.ruv, outline=FALSE, 
-                    # ylim=c(-3, 3),
-                    col=colors[groupData[[x]]])+title(main = paste0("plotRLE - raw counts betweenLaneNormalization ", x))
-    dev.off()
-})
-```
-
-### Running `RUVs` using `Empirical control genes` genes
-
-
-```{r 23_Running_RUVs_using_Empirical_control_genes_genes}
-design <- model.matrix(~0 + groupData[[designColumn]]  , data=groupData)
-y <- calcNormFactors(cds, method="upperquartile")
-y <- estimateGLMCommonDisp(y, design)
-y <- estimateGLMTagwiseDisp(y, design)
-fit <- glmFit(y, design)
-lrt <- glmLRT(fit, coef=2)
-top <- topTags(lrt, n=nrow(set.ruv))$table
-empirical <- rownames(set.ruv)[which(!(rownames(set.ruv) %in% rownames(top)[1:5000]))]
-
-differences <- makeGroups(groupData[[designColumn]])
-# differences
-
-```
-
-The `plotRLE` plots are from the `RUVs` data. I selected k=2 in this case (Number of unwanted variables=k).
-
-```{r 24_plotRLE_plots, fig.height=10, fig.width=10}
-set1 <- RUVs(set.ruv, empirical, k=RUV_k, differences)
-# This is how you get the column for W_1 variate which should be added to the design for DEG analysis
-pData(set1)
-write_csv(as.data.frame(pData(set1)) %>% rownames_to_column(var = "ID"), file = paste0(outdir, set, "RUV_K", RUV_k, "_variates.tsv"))
-# head(set1@assayData$counts[,1:5])
-# head(set1@assayData$normalizedCounts[,1:5])
-
-a <- lapply(contrast_columns, function(x){
-    par(las=3, mar=c(8,4,4,2))
-    EDASeq::plotRLE(set1, outline=FALSE, 
-                    # ylim=c(-3, 3),
-                    col=colors[groupData[[x]]])+title(main = paste0("plotRLE - RUV Normalized k=",RUV_k, " ", x))
-    pdf(file = paste0(outdir, set, "_plotRLE_RUV_k",RUV_k, "_", x, ".pdf"), width = 15, height = 10)
-    par(las=3, mar=c(8,4,4,2))
-    EDASeq::plotRLE(set1, outline=FALSE, 
-                    # ylim=c(-3, 3),
-                    col=colors[groupData[[x]]])+title(main = paste0("plotRLE - RUV Normalized k=",RUV_k, " ", x))
-    dev.off()
-})
-```
-
-## MDS plot - Sample Clustering with RUVs counts
-
-Establishing how different our sample groups are. The less that samples cluster, the more different their gene expression values are likely to be, which will lead to good differentially expressed genes. If samples from different groups overlap on a clustering plot, there is unlikely to be differentially expressed genes as a result. 
-
-Here, a multi-dimensional scaling plot (MDS) have been used to show sample similarity. Different groups are coloured separately.
-
-In this section, the raw counts in `cds` is replaced by the `normalizedCounts` from `ruv` package. The TMM normalization factor is stored within `cds` so this way we can use TMM factor applied to our counts together with RUV normalization.
-
-```{r 25_MDS_plot, fig.width=16}
-cds.ruv <- cds
-cds.ruv$counts <- set1@assayData$normalizedCounts
-
-mds <- limma::plotMDS(cds.ruv, plot = FALSE)
-
-a <- lapply(contrast_columns, function(x){
-  plot1 <- cbind(as.data.frame(mds$x), as.data.frame(mds$y)) %>%
-      mutate(SampleID = rownames(cds$samples)) %>%
-      # tibble::rownames_to_column(var = "SampleID") %>%
-      inner_join(groupData, by = "SampleID") %>% 
-      ggplot(aes(mds$x,mds$y, label = SampleID, 
-                 colour = .data[[x]])) +
-      geom_point(size = 3) +
-      # geom_label(aes(label = SampleID)) +
-      # scale_x_continuous(limits = c(-4,4)) +
-      # scale_y_continuous(limits = c(-0.7,0.7)) +
-      xlab(paste0("Dimension 1 (", round(mds$var.explained[1]*100), "%)")) +
-      ylab(paste0("Dimension 2 (", round(mds$var.explained[2]*100), "%)")) +
-      theme_bw()
-
-  plot2 <- cbind(as.data.frame(mds$x), as.data.frame(mds$y)) %>%
-    mutate(SampleID = rownames(cds$samples)) %>%
-    # tibble::rownames_to_column(var = "SampleID") %>%
-    inner_join(groupData, by = "SampleID") %>% 
-    ggplot(aes(mds$x,mds$y, label = SampleID, 
-               colour = .data[[x]])) +
-    geom_point(size = 3) +
-    geom_label(aes(label = SampleID)) +
-    # scale_x_continuous(limits = c(-4,4)) +
-    # scale_y_continuous(limits = c(-0.7,0.7)) +
-    xlab(paste0("Dimension 1 (", round(mds$var.explained[1]*100), "%)")) +
-    ylab(paste0("Dimension 2 (", round(mds$var.explained[2]*100), "%)")) +
-    theme_bw()
-  print(ggpubr::ggarrange(plot1, plot2, common.legend = T, ncol=2, legend = "right", widths = 20, heights = 7))
-  ggsave(filename = paste0(outdir, set, "_MDS_Plot_RUV",RUV_k, "_", x, ".pdf"), plot = plot1, width = 8, height = 8)
-  ggsave(filename = paste0(outdir, set, "_MDS_Plot_RUV",RUV_k, "_", x, "_labeled.pdf"), plot = plot2, width = 8, height = 8)
-})
-```
 
 
 ## Differential Gene Expression using `limma-voom`
@@ -624,22 +344,8 @@ Now we need to setup our hypotheses for the differential expression tests. Ideal
 To do this we set up a design matrix with all the samples defined, and then a contrast matrix to define the groups that we want to compare.
 
 ```{r 26_design}
-groupData <- pData(set1)
-if(RUV_Design == TRUE){
-  if(RUV_k == 1){
-    design <- model.matrix(~0 + W_1 + groupData[[designColumn]] , data = groupData)
-  } else if (RUV_k == 2){
-    design <- model.matrix(~0 + W_1 + W_2 + groupData[[designColumn]] , data = groupData)
-  } else if (RUV_k == 3){
-    design <- model.matrix(~0 + W_1 + W_2 + W_3 + groupData[[designColumn]] , data = groupData)
-  } else if (RUV_k == 4){
-    design <- model.matrix(~0 + W_1 + W_2 + W_3 + W_4 + groupData[[designColumn]] , data = groupData)
-  } else if (RUV_k == 5){
-    design <- model.matrix(~0 + W_1 + W_2 + W_3 + W_4 + W_5 + groupData[[designColumn]] , data = groupData)
-  }
-}else{
-  design <- model.matrix(~0 + groupData[[designColumn]] , data = groupData)
-}
+
+design <- model.matrix(~0 + groupData[[designColumn]] , data = groupData)
 
 colnames(design) <- gsub(".*]", "", colnames(design))
 design
@@ -711,24 +417,6 @@ dt <- decideTests(efit)
 summary <- as.data.frame(dt@.Data)
 
 # summary(decideTests(tfit, p.value = 0.05, lfc = 0.5))
-```
-
-## Interactive MD plot - Sample Clustering 
-
-```{r 30_interactive, warning=FALSE, include=FALSE}
-dt <- decideTests(efit)
-lapply(1:length(geno), function(x){
-  glMDPlot(efit,
-         coef=x,
-         status=dt,
-         main=colnames(efit)[x],
-         counts=cds, 
-         groups=groupData[[designColumn]],
-         html = paste0("MD-Plot-comparison_",designColumn, "_", geno[x]),
-         path = outdir,
-         # side.main="ENTREZID",
-         launch=FALSE)
-})
 ```
 
 ## DE Results Tables and Annotation
@@ -841,184 +529,6 @@ writexl::write_xlsx(flatAll, paste0(outdir, set, "_all_genes.xlsx"))
 cat(paste0(outdir, set, "_all_genes.xlsx") %>% gsub(baseDir, "./", .))
 ```
 
-## Comparison to duplicated counts
-
-Let's rerun the DE analysis with the deduplicated data (albiet with low coverage). This is only a test to see whether our DE genes are different between duplicates and non-duplicated runs. Preferrably, we like to take the standard counts, but if there is high levels of duplication, it is good to know what impact that might have on the results.
-
-## Import gene counts duplicated
-
-Import the counts from `featureCounts` into a matrix for analysis.
-
-```{r 35_Import-gene-counts , message=FALSE}
-# Read in table of counts
-counts.dup <- readr::read_delim(paste0(baseDir, "F6_counts/countTable_", annotation, ".tsv.gz"),
-                     delim = "\t", comment = "#")
-colnames(counts.dup) <- gsub(".*/F3_star/", "", colnames(counts.dup))
-colnames(counts.dup) <- gsub("_L.*", "", colnames(counts.dup))
-colnames(counts.dup) <- gsub("-", "_", colnames(counts.dup))
-counts.dup <- as.data.frame(counts.dup)
-# colnames(counts.dup)
-rownames(counts.dup) <- counts.dup$Geneid
-counts.dup <- counts.dup[, -which(names(counts.dup) %in% "Geneid")]
-# colnames(counts.dup)
-
-counts.dup <- counts.dup[, -which(names(counts.dup) %in% drop)]
-
-counts.dup <- counts.dup[, order(names(counts.dup))]
-head(counts.dup)
-
-```
-
-## Change gene names
-
-```{r 36_change_name}
-dim(counts)
-if(annotation == "geneID"){
-  counts.dup <- as.data.frame(counts.dup) %>%
-    tibble::rownames_to_column(var = "GeneID") %>%
-    left_join(allGeneSet, by = c("GeneID" = geneFilter)) %>%
-    mutate(GeneName = paste0(GeneID, "~", external_gene_name)) %>%
-    dplyr::select(-GeneID, -external_gene_name, -gene_biotype, -chromosome_name, -entrezgene_id)  %>%
-    distinct(GeneName, .keep_all = TRUE) %>%
-    filter(GeneName != "") %>%
-    tibble::column_to_rownames(var = "GeneName")
-}
-dim(counts.dup)
-head(counts.dup)
-```
-
-## DEG results for Duplicated reads
-
-```{r 37_DEGs_duplicated}
-# Load into a specific DGEList
-cds.Dup <- DGEList(counts.dup)
-
-# Size of the data
-dim(cds.Dup)
-cat("Eliminating row with zero values for all samples.")
-table(rowSums(cds.Dup$counts==0)==ncol(cds.Dup))
-
-# Filter the same as before
-cpm.Dup <- edgeR::cpm(cds.Dup)
-keep.exprs <- rowSums(cpm.Dup>2)>=3
-cds.Dup <- cds.Dup[keep.exprs,, keep.lib.sizes=FALSE]
-cds.Dup <- calcNormFactors(cds.Dup, method = "TMM")
-
-# Rerun voom transformation
-efit2 <- voom(cds.Dup, design, plot=FALSE) %>%
-  lmFit(design) %>%
-  contrasts.fit(contrasts=contr.matrix) %>%
-  eBayes()
-summary(decideTests(efit2, p.value = 0.05))
-
-# tfit2 <- treat(efit2, lfc=1)
-# summary(decideTests(tfit2, p.value = 0.05, lfc = 1))
-```
-
-
-```{r 38_DEGs_duplicated}
-if(annotation == "geneID"){
-    resultsTblList.dup <- lapply(1:length(geno), function(x){
-      topTreat(efit2, coef=x, n=Inf) %>%
-        tibble::rownames_to_column(var = "GeneID") %>% 
-        mutate(ensembl_gene_id = gsub("~.*", "", GeneID)) %>% 
-        left_join(allGeneSet, by = c("ensembl_gene_id" = geneFilter)) %>%
-        dplyr::select(GeneID, 
-                      ensembl_gene_id,
-                      external_gene_name,
-                      entrezgene_id, 
-                      logFC, AveExpr, t, P.Value, B, FDR = adj.P.Val) %>%
-        arrange(FDR) %>%
-        dplyr::filter(FDR < 0.05 & abs(logFC) >= LFC_cutoff)
-    })
-    names(resultsTblList.dup) <- geno
-} else if(annotation == "geneName"){
-      resultsTblList.dup <- lapply(1:length(geno), function(x){
-          topTreat(efit2, coef=x, n=Inf) %>%
-            tibble::rownames_to_column(var = "GeneID") %>% 
-            left_join(allGeneSet, by = c("GeneID" = geneFilter)) %>%
-            dplyr::select(GeneID, 
-                          ensembl_gene_id,
-                          entrezgene_id, 
-                          logFC, AveExpr, t, P.Value, B, FDR = adj.P.Val) %>%
-            arrange(FDR) %>%
-            dplyr::filter(FDR < 0.05 & abs(logFC) >= LFC_cutoff)
-    })
-    names(resultsTblList.dup) <- geno
-}
-head(resultsTblList.dup[[1]])
-```
-
-```{r 39_filter}
-resultsTblList.dup <- lapply(resultsTblList.dup, function(x){
-  if(nrow(x) > 1){
-    return(x)
-  } else {
-    return(NULL)
-  }
-})
-is.not.null <- function(x) !is.null(x)
-resultsTblList.dup = resultsTblList.dup[which(sapply(resultsTblList.dup, is.not.null))]
-lapply(resultsTblList.dup, nrow)
-```
-
-
-```{r 40_remove_Null}
-vennNames <- intersect(names(resultsTblList), names(resultsTblList.dup))
-vennNames
-```
-
-## Venn Diagram (Normal vs Deduplicated counts)
-
-Lets run comparisons to see whether there is any difference between our deduplicated DE genes and non-deduplicated (Normal) ones. This is just to check.
-
-```{r 41_venn, fig.height= 12}
-Venn.list <- lapply(vennNames, function(x){
-  list(Normal = resultsTblList[[x]]$GeneID, Duplicated = resultsTblList.dup[[x]]$GeneID)
-})
-names(Venn.list) <- vennNames
-
-par(mar=c(1,1,1,1), mfrow=c(3,3))
-Venn.plots <- lapply(names(Venn.list), function(x){
-  gplots::venn(Venn.list[[x]]) + title(x)
-})
-```
-
-We'll use the deduplicated counts from now on.
-
-## Ditto Heatmap from `TMM` normalised using `cpm` for DEG list
-
-```{r 42_Ditto_Heatmap, fig.height=8, fig.width=6}
-cpm <- edgeR::cpm(cds)
-# head(cpm)[1:3, 1:3]
-cds.withTMM <- cds
-cds.withTMM$counts <- cpm
-cds.withTMM$samples$norm.factors <- 1
-# head(cds.withTMM)[1:3, 1:3]
-
-bulkSCE.withTMM <- importDittoBulk(
-    x = cds.withTMM,
-    # (We aren't actually calculating PCA here.)
-    metadata = groupData)
-genelist <- flatDE %>% filter(abs(logFC) > 2) %>% .[["GeneID"]] %>% unique()
-length(genelist)
-
-a <- lapply(contrast_columns, function(x){
-    ditto.bulkSCE.withTMM.DEG <- dittoHeatmap(bulkSCE.withTMM,
-                                      genelist,
-             annot.by = x, show_rownames = FALSE, fontsize_row = 5, fontsize = 8, main = paste0("All DEGs ", x))
-    ggsave(filename = paste0(outdir, set, "_ditto_withTMM_cpm_DEGs_all", x, ".pdf"), plot = ditto.bulkSCE.withTMM.DEG, width = 8, height = 8)
-  
-})
-
-a <- lapply(names(resultsTblList), function(x){
-  ditto.bulkSCE.withTMM.DEG <- dittoHeatmap(bulkSCE.withTMM,
-                                      resultsTblList[[x]]$GeneID,
-             annot.by = designColumn, show_rownames = FALSE, fontsize_row = 5, fontsize = 8, main = paste0("DEGs for: ", x))
-  ggsave(filename = paste0(outdir, set, "_", x, "_ditto_withTMM_cpm_DEGs.pdf"), plot = ditto.bulkSCE.withTMM.DEG, width = 8, height = 8)
-})
-```
-
 ## Volcano plots
 
 Now we should have a look at how the differences (logFC) compare to the significance (negative log of the FDR). This is what we call a volcano plot. Here we have also coloured each gene by whether it was significant or not.
@@ -1067,40 +577,6 @@ list <- lapply(resultsTblList, function(x){
 sapply(list, length) %>% as.table()
 max <- sapply(list, length) %>% as.table() %>% max() * 1.2
 upset(fromList(list), set_size.show = TRUE, nsets = length(list), set_size.scale_max = max)
-```
-
-## Write the cpm data into an _Excel_ file
-
-We added the _GeneName_ and _EntrezGeneID_ to the cpm table and write into a `Excel` file.  
-
-```{r 45_cpm_out}
-if(annotation == "geneID"){
-    cds.temp <- DGEList(counts)
-    cpm <- edgeR::cpm(cds.temp)
-    # dim(cpm)
-    cpm_out <- as.data.frame(cpm) %>%
-        tibble::rownames_to_column(var = "GeneID") %>%
-        mutate(ensembl_gene_id = gsub("~.*", "", GeneID)) %>%
-        left_join(allGeneSet, by = c("ensembl_gene_id" = geneFilter)) %>%
-        # distinct(GeneID, .keep_all = TRUE) %>%
-        dplyr::select(-gene_biotype, -chromosome_name) %>%
-        dplyr::select(GeneID, ensembl_gene_id, external_gene_name, entrezgene_id, colnames(cpm))
-    writexl::write_xlsx(cpm_out, paste(outdir, set, "_cpm_out.xlsx", sep = ""))
-
-} else if(annotation == "geneName"){
-    cds.temp <- DGEList(counts)
-    cpm <- edgeR::cpm(cds.temp)
-    # dim(cpm)
-    cpm_out <- as.data.frame(cpm) %>%
-        tibble::rownames_to_column(var = "GeneID") %>%
-        left_join(allGeneSet, by = c("GeneID" = geneFilter)) %>%
-        # distinct(GeneID, .keep_all = TRUE) %>%
-        dplyr::select(-gene_biotype, -chromosome_name) %>%
-        dplyr::select(ensembl_gene_id, GeneID, entrezgene_id, colnames(cpm))
-    writexl::write_xlsx(cpm_out, paste(outdir, set, "_cpm_out.xlsx", sep = ""))
-}
-dim(cpm_out)
-head(cpm_out)
 ```
 
 ## Creating a report
@@ -1187,40 +663,6 @@ gene_matrix <- lapply(resultsTblList, function(x){
 # lapply(gene_matrix, head)
 ```
 
-```{r 48_gene_matrix_up}
-# https://github.com/twbattaglia/RNAseq-workflow
-
-# Remove any genes that do not have any entrez identifiers
-gene_matrix_up <- lapply(resultsTblList, function(x){
-  y <- subset(x, is.na(entrezgene_id) == FALSE) %>%  filter(logFC > 0)
-  # Create a matrix of gene log2 fold changes
-  z <- y$logFC
-  # Add the entrezID's as names for each logFC entry
-  names(z) <- y$entrezgene_id
-  return(z)
-})
-# names(gene_matrix_up) <- geno
-# lapply(gene_matrix_up, head)
-```
-
-
-```{r 48_gene_matrix_down}
-# https://github.com/twbattaglia/RNAseq-workflow
-
-# Remove any genes that do not have any entrez identifiers
-gene_matrix_down <- lapply(resultsTblList, function(x){
-  y <- subset(x, is.na(entrezgene_id) == FALSE) %>%  filter(logFC < 0)
-  # Create a matrix of gene log2 fold changes
-  z <- y$logFC
-  # Add the entrezID's as names for each logFC entry
-  names(z) <- y$entrezgene_id
-  return(z)
-})
-# names(gene_matrix_down) <- geno
-# lapply(gene_matrix_down, head)
-```
-
-
 ##  Enrich genes using the KEGG database
 
 ```{r 49_KEGG, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
@@ -1232,95 +674,11 @@ kegg_enrich <- lapply(gene_matrix, function(x){
 })
 # Plot results
 
-omit_null_list <- function(list) {
-    list <- lapply(list, function(x){
-      if(nrow(x) > 1){
-        return(x)
-      } else {
-        return(NULL)
-      }
-    })
-    is.not.null <- function(x) !is.null(x)
-    list = list[which(sapply(list, is.not.null))]
-    return(list)
-}
-kegg_enrich <- omit_null_list(kegg_enrich)
-
 lapply(names(kegg_enrich), function(x){ 
   barplot(kegg_enrich[[x]], 
           drop = TRUE, 
           showCategory = 20, 
           title = paste0("KEGG Enrichment Pathways for ", x),
-          font.size = 12)
-})
-```
-
-
-##  Enrich genes using the KEGG database up-regulated genes
-
-```{r 49_KEGG_up, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-kegg_enrich <- lapply(gene_matrix_up, function(x){ 
-  enrichKEGG(gene = names(x),
-                          organism = species,
-                          pvalueCutoff = 0.05, 
-                          qvalueCutoff = 0.10)
-})
-# Plot results
-
-omit_null_list <- function(list) {
-    list <- lapply(list, function(x){
-      if(nrow(x) > 1){
-        return(x)
-      } else {
-        return(NULL)
-      }
-    })
-    is.not.null <- function(x) !is.null(x)
-    list = list[which(sapply(list, is.not.null))]
-    return(list)
-}
-kegg_enrich <- omit_null_list(kegg_enrich)
-
-lapply(names(kegg_enrich), function(x){ 
-  barplot(kegg_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("KEGG Enrichment Pathways for up-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-
-##  Enrich genes using the KEGG database down-regulated genes
-
-```{r 49_KEGG_down, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-kegg_enrich <- lapply(gene_matrix_down, function(x){ 
-  enrichKEGG(gene = names(x),
-                          organism = species,
-                          pvalueCutoff = 0.05, 
-                          qvalueCutoff = 0.10)
-})
-# Plot results
-
-omit_null_list <- function(list) {
-    list <- lapply(list, function(x){
-      if(nrow(x) > 1){
-        return(x)
-      } else {
-        return(NULL)
-      }
-    })
-    is.not.null <- function(x) !is.null(x)
-    list = list[which(sapply(list, is.not.null))]
-    return(list)
-}
-kegg_enrich <- omit_null_list(kegg_enrich)
-
-lapply(names(kegg_enrich), function(x){ 
-  barplot(kegg_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("KEGG Enrichment Pathways for down-DEGs: ", x),
           font.size = 12)
 })
 ```
@@ -1338,8 +696,6 @@ go_enrich <- lapply(gene_matrix, function(x){
                       pvalueCutoff = 0.05, 
                       qvalueCutoff = 0.10)
 })
-
-go_enrich <- omit_null_list(go_enrich)
 
 # Plot results
 lapply(names(go_enrich), function(x){ 
@@ -1363,7 +719,6 @@ go_enrich <- lapply(gene_matrix, function(x){
                       qvalueCutoff = 0.10)
 })
 
-go_enrich <- omit_null_list(go_enrich)
 
 # Plot results
 lapply(names(go_enrich), function(x){ 
@@ -1387,8 +742,6 @@ go_enrich <- lapply(gene_matrix, function(x){
                       qvalueCutoff = 0.10)
 })
 
-go_enrich <- omit_null_list(go_enrich)
-
 # Plot results
 lapply(names(go_enrich), function(x){ 
   barplot(go_enrich[[x]], 
@@ -1397,252 +750,6 @@ lapply(names(go_enrich), function(x){
           title = paste0("GO Cellular Compartment for ", x),
           font.size = 12)
 })
-```
-
-### Biological process up-regulated genes
-
-```{r 50_GO_BP_up, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-go_enrich <- lapply(gene_matrix_up, function(x){ 
-    enrichGO(gene = names(x),
-                      OrgDb = org_species, 
-                      readable = T,
-                      ont = "BP",
-                      pvalueCutoff = 0.05, 
-                      qvalueCutoff = 0.10)
-})
-
-go_enrich <- omit_null_list(go_enrich)
-
-# Plot results
-lapply(names(go_enrich), function(x){ 
-  barplot(go_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("GO Biological Process for up-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-### Molecular function up-regulated genes
-
-```{r 51_GO_MF_up, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-go_enrich <- lapply(gene_matrix_up, function(x){ 
-    enrichGO(gene = names(x),
-                      OrgDb = org_species, 
-                      readable = T,
-                      ont = "MF",
-                      pvalueCutoff = 0.05, 
-                      qvalueCutoff = 0.10)
-})
-
-go_enrich <- omit_null_list(go_enrich)
-
-# Plot results
-lapply(names(go_enrich), function(x){ 
-  barplot(go_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("GO Molecular Function for up-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-### Cellular compartment up-regulated genes
-
-```{r 52_GO_CC_up, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-go_enrich <- lapply(gene_matrix_up, function(x){ 
-    enrichGO(gene = names(x),
-                      OrgDb = org_species, 
-                      readable = T,
-                      ont = "CC",
-                      pvalueCutoff = 0.05, 
-                      qvalueCutoff = 0.10)
-})
-
-go_enrich <- omit_null_list(go_enrich)
-
-# Plot results
-lapply(names(go_enrich), function(x){ 
-  barplot(go_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("GO Cellular Compartment for up-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-
-### Biological process down-regulated genes
-
-```{r 50_GO_BP_down, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-go_enrich <- lapply(gene_matrix_down, function(x){ 
-    enrichGO(gene = names(x),
-                      OrgDb = org_species, 
-                      readable = T,
-                      ont = "BP",
-                      pvalueCutoff = 0.05, 
-                      qvalueCutoff = 0.10)
-})
-
-go_enrich <- omit_null_list(go_enrich)
-
-# Plot results
-lapply(names(go_enrich), function(x){ 
-  barplot(go_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("GO Biological Process for down-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-### Molecular function down-regulated genes
-
-```{r 51_GO_MF_down, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-go_enrich <- lapply(gene_matrix_down, function(x){ 
-    enrichGO(gene = names(x),
-                      OrgDb = org_species, 
-                      readable = T,
-                      ont = "MF",
-                      pvalueCutoff = 0.05, 
-                      qvalueCutoff = 0.10)
-})
-
-go_enrich <- omit_null_list(go_enrich)
-
-# Plot results
-lapply(names(go_enrich), function(x){ 
-  barplot(go_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("GO Molecular Function for down-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-### Cellular compartment down-regulated genes
-
-```{r 52_GO_CC_down, eval=cal_GO, fig.height=15, fig.width=15, include=cal_GO}
-go_enrich <- lapply(gene_matrix_down, function(x){ 
-    enrichGO(gene = names(x),
-                      OrgDb = org_species, 
-                      readable = T,
-                      ont = "CC",
-                      pvalueCutoff = 0.05, 
-                      qvalueCutoff = 0.10)
-})
-
-go_enrich <- omit_null_list(go_enrich)
-
-# Plot results
-lapply(names(go_enrich), function(x){ 
-  barplot(go_enrich[[x]], 
-          drop = TRUE, 
-          showCategory = 20, 
-          title = paste0("GO Cellular Compartment for down-DEGs: ", x),
-          font.size = 12)
-})
-```
-
-
-```{r 53_KEGG_Pathways, eval=FALSE, include=FALSE}
-## Plotting KEGG Pathways
-# Plot specific KEGG pathways (with fold change) 
-## pathway.id : KEGG pathway identifier
-lapply(names(gene_matrix), function(x){ 
-    pathview(gene.data = gene_matrix[[x]], 
-             pathway.id = "04141", 
-             species = "mouse",
-             out.suffix = paste0(set, "_", x))
-})
-
-lapply(names(gene_matrix), function(x){ 
-    pathview(gene.data = gene_matrix[[x]], 
-             pathway.id = "04621", 
-             species = "mouse",
-             out.suffix = paste0(set, "_", x))
-})
-
-lapply(names(gene_matrix), function(x){ 
-    pathview(gene.data = gene_matrix[[x]], 
-             pathway.id = "04620", 
-             species = "mouse",
-             out.suffix = paste0(set, "_", x))
-})
-
-lapply(names(gene_matrix), function(x){ 
-    pathview(gene.data = gene_matrix[[x]], 
-             pathway.id = "04064", 
-             species = "mouse",
-             out.suffix = paste0(set, "_", x))
-})
-
-lapply(names(gene_matrix), function(x){ 
-    pathview(gene.data = gene_matrix[[x]], 
-             pathway.id = "04340", 
-             species = "mouse",
-             out.suffix = paste0(set, "_", x))
-})
-```
-
-
-```{r 54_Run_PCA}
-bulkSCE <- importDittoBulk(
-    x = cds,
-    # (We aren't actually calculating PCA here.)
-    metadata = groupData)
-logcounts(bulkSCE) <- edgeR::cpm(cds, log = TRUE)
-bulkSCE <- runPCA(bulkSCE, exprs_values = "logcounts")
-bulkSCE <- runTSNE(bulkSCE, exprs_values = "logcounts")
-bulkSCE <- runUMAP(bulkSCE, exprs_values = "logcounts")
-```
-
-## `PCA` and `TSNE` plots from `logcounts`
-
-```{r 55_Plot_PCA_ditto}
-dittoDimPlot(bulkSCE, designColumn, size = 3, do.ellipse = FALSE, reduction.use = "PCA")
-dittoDimPlot(bulkSCE, designColumn, size = 3, do.ellipse = FALSE, reduction.use = "TSNE")
-dittoDimPlot(bulkSCE, designColumn, size = 3, do.ellipse = FALSE, reduction.use = "UMAP")
-```
-
-## Visulaisation of top 10 genes sorted by logFC
-
-```{r 56_dittoBoxPlot}
-# dittoPlot(bulkSCE, "Edn2", group.by = "Treatment")
-# dittoDimPlot(bulkSCE, "Age", size = 3, do.ellipse = TRUE, reduction.use = "PCA")
-# dittoDimPlot(bulkSCE, "Age", size = 3, do.ellipse = TRUE, reduction.use = "TSNE")
-# dittoDimPlot(bulkSCE, "Treatment", size = 3, do.ellipse = TRUE, reduction.use = "TSNE")
-topGenes <- lapply(resultsTblList, function(x){
-    x  %>% 
-      arrange(abs(logFC)) %>% 
-      head(2) %>%
-      select(GeneID) %>%
-      .[[1]] %>%
-      unique()
-})
-topGenes <- Reduce(union, topGenes) %>% unique()
-length(topGenes)
-
-a <- lapply(topGenes, function(x){
-  plot1 <- dittoBoxPlot(bulkSCE, x, group.by = designColumn, legend.show = FALSE)
-  # plot2 <- dittoRidgePlot(bulkSCE, x, group.by = "Genotype_Age")
-  print(plot1)
-  # print(plot2)
-})
-```
-
-## Heatmaps of top genes in all comparisons
-
-```{r 57_dittoHeatmap, fig.height= 15, fig.width= 12}
-dittoHeatmap(bulkSCE, topGenes,
-             annot.by = designColumn, show_rownames = TRUE)
-```
-
-### saving image
-
-```{r 58_saving-image}
-save.image(file = paste0(outdir, set, ".RData"))
-# load(paste0(outdir, set, ".RData"))
 ```
 
 ## Session details
