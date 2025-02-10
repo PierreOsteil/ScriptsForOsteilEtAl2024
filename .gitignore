@@ -2,3 +2,4 @@
 1_Microfluidic_qRTPCR/stats/*.txt
 4-Image_analysis/4.2_Images_Micropattern_analysis/Data
 4-Image_analysis/4.2_Images_Micropattern_analysis/Plots
+plots/*.pdf
