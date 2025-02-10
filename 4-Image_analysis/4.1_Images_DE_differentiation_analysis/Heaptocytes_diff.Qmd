@@ -47,3 +47,33 @@ aat.plot <- ggviolin(dat_hep, x = "CellLine", y = "AAT.Norm", color = "CellLine"
 ggsave("plots/aat.plot.pdf", aat.plot , width = 7, height = 7)
 ```
 
+# Cyp Activity
+```{r}
+# results from Sarah: 
+
+df <- data.frame(
+  CellLine = c("C32", "C32", "C11", "C11"),
+  Value = c(1966.5, 2985.5, 10485.35277, 16377.9292)
+)
+
+# Calculate the SEM
+df_sem <- df %>%
+  group_by(CellLine) %>%
+  summarise(sem = sd(Value) / sqrt(n()))
+
+# Merge the SEM with the original data
+df <- df %>%
+  left_join(df_sem, by = "CellLine")
+
+level.order <- c("C32", "C11")
+
+
+cyp.plot <- ggplot(df, aes(x = CellLine, y = Value, fill = CellLine)) +
+  geom_bar(stat = "summary", fun.y = "mean") +
+  scale_x_discrete(limits = level.order) +
+  geom_errorbar(aes(ymin = Value - sem , ymax = Value + sem), width = 0.2) +
+  #stat_compare_means(comparisons = list(c("C32", "C11")), method = "t.test") +
+  theme_bw()
+ggsave("plots/cyp_activity.pdf", cyp.plot, width = 5, height = 7)
+
+```
