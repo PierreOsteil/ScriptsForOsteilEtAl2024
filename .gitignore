@@ -3,3 +3,8 @@
 4-Image_analysis/4.2_Images_Micropattern_analysis/Data
 4-Image_analysis/4.2_Images_Micropattern_analysis/Plots
 plots/*.pdf
+*.tif
+*.txt
+*.png
+*.xlsx
+4-Image_analysis/4.3_Hepatocytes
