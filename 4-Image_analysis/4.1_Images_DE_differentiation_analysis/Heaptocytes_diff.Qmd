@@ -1,0 +1,49 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library("ggplot2")
+library("ggpubr")
+library("tidyverse")
+```
+
+
+```{r}
+dat_hep <- read.csv("C:/Users/piosteil/Desktop/Work/3_Australia/hiPSC/hiPSC_paper_V12/Review/data/Results_CellPose.csv", sep = ";")
+dim(dat_hep)
+
+summary(dat_hep$Area)
+dat_hep <- dat_hep |> filter(Area > pi * 10^2) |>
+                mutate(AAT.Norm = AAT.Mean / DAPI.Mean) |>
+                mutate(ALB.Norm = ALB.Mean / DAPI.Mean)
+
+head(dat_hep)
+
+ncells <- data.frame(
+  CellLine = c("C32", "C11"),
+  n = c(nrow(dat_hep |> filter(CellLine == "C32")), 
+        nrow(dat_hep |> filter(CellLine == "C11")))
+)
+
+FC.alb <- dat_hep |> filter(CellLine == "C32") |> select(ALB.Norm) |> summarise(mean = mean(ALB.Norm)) / 
+      dat_hep |> filter(CellLine == "C11") |> select(ALB.Norm) |> summarise(mean = mean(ALB.Norm))
+FC.aat <- dat_hep |> filter(CellLine == "C32") |> select(AAT.Norm) |> summarise(mean = mean(AAT.Norm)) / 
+      dat_hep |> filter(CellLine == "C11") |> select(AAT.Norm) |> summarise(mean = mean(AAT.Norm))
+
+
+alb.plot <- ggviolin(dat_hep, x = "CellLine", y = "ALB.Norm", color = "CellLine", add = c("boxplot")) + 
+  stat_compare_means(comparisons = list(c("C32", "C11")), method = "t.test") +
+  geom_text(data = ncells, aes(x = CellLine, y = 0, label = paste0("n = ", n)), check_overlap = TRUE, vjust = -1)
+
+ggsave("plots/alb.plot.pdf", alb.plot , width = 7, height = 7)
+
+
+aat.plot <- ggviolin(dat_hep, x = "CellLine", y = "AAT.Norm", color = "CellLine", add = c("boxplot")) + 
+  stat_compare_means(comparisons = list(c("C32", "C11")), method = "t.test") +
+  geom_text(data = ncells, aes(x = CellLine, y = 0, label = paste0("n = ", n)), check_overlap = TRUE, vjust = -1)
+  
+ggsave("plots/aat.plot.pdf", aat.plot , width = 7, height = 7)
+```
+
